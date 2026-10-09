@@ -1,0 +1,22 @@
+{
+  "phrases": {
+    "fica de pé": "stand_up",
+    "pode sentar": "sit",
+    "deita no chão": "stand_down",
+    "para agora": "stop",
+    "dá um oi": "hello",
+    "faz alongamento": "stretch",
+    "faz coração": "finger_heart",
+    "desligar motores": "damp"
+  },
+  "commands": {
+    "stand_up": {"method": "POST", "endpoint": "/commands/posture", "sport_cmd": "StandUp", "params": ["cmd"]},
+    "sit": {"method": "POST", "endpoint": "/commands/posture", "sport_cmd": "Sit", "params": ["cmd"]},
+    "stand_down": {"method": "POST", "endpoint": "/commands/posture", "sport_cmd": "StandDown", "params": ["cmd"]},
+    "damp": {"method": "POST", "endpoint": "/commands/posture", "sport_cmd": "Damp", "params": ["cmd"]},
+    "stop": {"method": "POST", "endpoint": "/commands/stop", "sport_cmd": "StopMove", "params": []},
+    "hello": {"method": "POST", "endpoint": "/commands/gesture", "sport_cmd": "Hello", "params": ["cmd"]},
+    "stretch": {"method": "POST", "endpoint": "/commands/gesture", "sport_cmd": "Stretch", "params": ["cmd"]},
+    "finger_heart": {"method": "POST", "endpoint": "/commands/gesture", "sport_cmd": "FingerHeart", "params": ["cmd"]}
+  }
+}

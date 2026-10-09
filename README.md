@@ -18,48 +18,119 @@ thin   [Anker] → TV Box: captura ──TCP──▶ PC: reconhecimento ──H
 
 O reconhecimento é o mesmo componente nos dois modos (`sense/recognizer.py`); só muda de onde vem o áudio.
 
-## Instalação
+## Como rodar
 
-Requer Python 3.10 ou 3.11 (o [uv](https://docs.astral.sh/uv/) baixa um se o sistema não tiver).
+Nos dois modos a go2-api precisa estar no ar e alcançável pela rede (`curl http://<IP_DA_API>:8000/status` responde 200). Requer Python 3.10 ou 3.11; o [uv](https://docs.astral.sh/uv/) baixa um se o sistema não tiver.
 
-**TV Box** (o PyAudio compila do fonte em aarch64):
+### Modo edge (tudo na TV Box)
+
+Na TV Box, dentro do repo:
+
+1. Instale as dependências de sistema (o PyAudio compila do fonte em aarch64):
+
+   ```bash
+   sudo apt install portaudio19-dev gcc python3-dev
+   ```
+
+2. Instale o projeto com captura e reconhecimento, e baixe os modelos (cerca de 300 MB + 60 MB; confira `df -h` antes):
+
+   ```bash
+   uv sync --no-dev --extra capture --extra recognition
+   uv run python scripts/download_models.py
+   ```
+
+3. Crie o `.env`:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   e deixe nele:
+
+   ```
+   SENSE_MODE=edge
+   GO2_API_URL=http://<IP_DA_API>:8000
+   ```
+
+4. Confira o mapa de comandos contra a API (tem de imprimir `OK`):
+
+   ```bash
+   uv run python scripts/validate_commands.py
+   ```
+
+5. Rode:
+
+   ```bash
+   uv run python -m sense
+   ```
+
+   O log deve mostrar `modo=edge`, `Reconhecedor pronto` e `Microfone aberto`. Diga "hey jarvis", espere o beep e diga uma frase.
+
+### Modo thin (TV Box envia o áudio, PC reconhece)
+
+São duas máquinas. Suba primeiro o PC.
+
+**No PC** (não precisa de PyAudio nem de microfone), dentro de um clone deste repo:
+
+1. Instale o reconhecimento e baixe os modelos:
+
+   ```bash
+   uv sync --no-dev --extra recognition
+   uv run python scripts/download_models.py
+   ```
+
+2. Libere a porta TCP 9876 no firewall (no Fedora: `sudo firewall-cmd --add-port=9876/tcp`).
+
+3. Rode o receptor, apontando para a API:
+
+   ```bash
+   GO2_API_URL=http://<IP_DA_API>:8000 uv run python -m sense.receiver
+   ```
+
+   O log deve mostrar `modo=receiver` e `Reconhecedor pronto`. Em vez de passar a variável na linha de comando, você pode criar um `.env` no PC com `GO2_API_URL` (e, se quiser, `RECEIVER_PORT` e os parâmetros de reconhecimento).
+
+**Na TV Box**, dentro do repo:
+
+1. Instale as dependências de sistema e o projeto só com captura:
+
+   ```bash
+   sudo apt install portaudio19-dev gcc python3-dev
+   uv sync --no-dev --extra capture
+   ```
+
+   Se a TV Box já foi instalada para o modo edge, pule este passo: não é preciso reinstalar nada.
+
+2. No `.env` (crie com `cp .env.example .env` se ainda não existir):
+
+   ```
+   SENSE_MODE=thin
+   RECEIVER_HOST=<IP_DO_PC>
+   ```
+
+3. Rode:
+
+   ```bash
+   uv run python -m sense
+   ```
+
+   O log da TV Box deve mostrar `modo=thin` e `Conectado ao receptor`; o do PC, `TV Box conectada`. Diga "hey jarvis": o beep toca na TV Box, e `Wake word detectada` e `Enviado:` aparecem no log **do PC**.
+
+### Trocar de modo
+
+Com os dois extras instalados na TV Box (passo 2 do modo edge), trocar é só editar `SENSE_MODE` no `.env` e reiniciar o processo. Não há `git checkout` nem reinstalação. Para ir de edge a thin, o receptor precisa estar rodando no PC.
+
+### Como serviço na TV Box
+
+O mesmo serviço systemd serve aos dois modos (ele lê o `.env`). As instruções de instalação estão no topo de `deploy/go2-sense.service`; ajuste ali o usuário e o caminho do repo. Depois:
 
 ```bash
-sudo apt install portaudio19-dev gcc python3-dev
-uv sync --no-dev --extra capture                       # só thin
-uv sync --no-dev --extra capture --extra recognition   # edge, ou para alternar entre os dois
-uv run python scripts/download_models.py               # só se instalou `recognition`
-cp .env.example .env                                   # e ajuste
-```
-
-Quem instala os dois extras troca de modo só editando o `.env` e reiniciando. O extra `recognition` ocupa cerca de 300 MB, mais 60 MB de modelos: confira `df -h` antes.
-
-**PC receptor** (modo thin; não precisa de PyAudio):
-
-```bash
-uv sync --no-dev --extra recognition
-uv run python scripts/download_models.py
-GO2_API_URL=http://localhost:8000 uv run python -m sense.receiver
-```
-
-O receptor lê `GO2_API_URL` e, opcionalmente, `RECEIVER_PORT` e os parâmetros de reconhecimento, do `.env` ou do ambiente. Libere a porta TCP 9876 no firewall do PC.
-
-## Uso
-
-À mão, na TV Box:
-
-```bash
-uv run python -m sense
-```
-
-Como serviço (as instruções de instalação estão no topo de `deploy/go2-sense.service`):
-
-```bash
-sudo systemctl restart go2-sense
-journalctl --namespace=go2-sense -f
+sudo systemctl restart go2-sense        # aplica uma mudança no .env
+journalctl --namespace=go2-sense -f     # acompanha os logs
 ```
 
 Os logs do serviço ficam num journal próprio, limitado a 20 MB.
+
+### O que esperar no log
 
 No boot, o log mostra o modo, a branch e o commit em execução, e a configuração em vigor:
 
@@ -68,7 +139,7 @@ Sense iniciando | modo=edge | código=sense-mode-config@1a2b3c4
 Configuração: api_url=http://192.168.0.10:8000 chunk_ms=30 mic_name=anker ...
 ```
 
-Configuração inválida derruba o processo na partida (código de saída 2, sem reinício automático) com todos os problemas listados.
+Configuração inválida (modo desconhecido, `GO2_API_URL` faltando em edge, `RECEIVER_HOST` faltando em thin) derruba o processo na partida, com todos os problemas listados. Como serviço, ele para sem ficar reiniciando.
 
 ## Comandos de voz
 

@@ -48,6 +48,9 @@ class SttEngine(Protocol):
     def accept(self, chunk: bytes) -> Transcript | None:
         """Consome o chunk. Devolve a transcrição quando a fala termina."""
 
+    def partial(self) -> str:
+        """O que o STT acha que ouviu até agora, sem fechar a frase."""
+
     def finish(self) -> Transcript:
         """Devolve o que foi ouvido até agora (usado no timeout)."""
 
@@ -91,6 +94,9 @@ class VoskEngine:
             return self._transcript(self._recognizer.Result())
         return None
 
+    def partial(self) -> str:
+        return json.loads(self._recognizer.PartialResult()).get("partial", "")
+
     def finish(self) -> Transcript:
         return self._transcript(self._recognizer.FinalResult())
 
@@ -131,6 +137,10 @@ class Recognizer:
         self._on_wake = on_wake
         self._state = _State.PASSIVE
         self._remaining_s = 0.0  # quanto falta do estado atual (ou do rearme)
+        # Só para a telemetria da escuta e do rearme.
+        self._partial = ""
+        self._partial_at_s = 0.0
+        self._rearming = False
 
     def feed(self, chunk: bytes) -> Command | None:
         """Consome um chunk de áudio. Devolve um comando só quando reconhece um."""
@@ -138,7 +148,19 @@ class Recognizer:
 
         if self._state is _State.PASSIVE:
             score = self._wake.score(chunk)
-            if self._remaining_s > 0 or score < self._config.wake_threshold:
+            if self._remaining_s > 0:
+                if score >= self._config.wake_threshold and self._rearming:
+                    log.info(
+                        "Wake word ignorada (score=%.2f): rearme, faltam %.1fs.",
+                        score, self._remaining_s,
+                    )
+                    self._counters["wake_ignored_rearm"] += 1
+                    self._rearming = False  # uma linha por rearme
+                return None
+            if self._rearming:
+                log.info("Rearme terminou: wake word ativa de novo.")
+                self._rearming = False
+            if score < self._config.wake_threshold:
                 return None
             log.info("Wake word detectada (score=%.2f). Ouvindo comando...", score)
             self._counters["wake_detections"] += 1
@@ -152,19 +174,62 @@ class Recognizer:
                 self._stt.reset()
                 self._state = _State.LISTENING
                 self._remaining_s = self._config.command_timeout_s
+                self._partial = ""
+                self._partial_at_s = 0.0
+                log.info(
+                    "Escuta aberta (descarte de %.1fs acabou; teto de %.1fs).",
+                    POST_WAKE_DISCARD_S, self._config.command_timeout_s,
+                )
             return None
 
         transcript = self._stt.accept(chunk)
-        if transcript is None or not transcript.text:
+        heard_after_s = self._config.command_timeout_s - self._remaining_s
+        if transcript is not None and transcript.text:
+            log.info(
+                "Escuta fechada pelo Vosk em %.1fs: fim de fala, %.1fs depois da última "
+                "palavra nova.",
+                heard_after_s, heard_after_s - self._partial_at_s,
+            )
+            self._counters["listen_closed_by_vosk"] += 1
+        else:
+            if transcript is None:
+                self._track_partial(heard_after_s)
+            else:
+                log.info(
+                    "Escuta: o Vosk fechou um trecho sem fala em %.1fs; segue ouvindo.",
+                    heard_after_s,
+                )
             if self._remaining_s > 0:
                 return None
+            pending = self._partial
             transcript = self._stt.finish()
+            log.info(
+                "Escuta cortada pelo teto de %.1fs: o Vosk não fechou a frase "
+                "(parcial=%r, final=%r).",
+                self._config.command_timeout_s, pending, transcript.text,
+            )
+            if transcript.text:
+                self._counters["listen_cut_by_timeout"] += 1
 
-        heard_after_s = self._config.command_timeout_s - self._remaining_s
         self._wake.reset()
         self._state = _State.PASSIVE
         self._remaining_s = REARM_S
+        self._rearming = True
         return self._match(transcript, heard_after_s)
+
+    def _track_partial(self, heard_after_s: float) -> None:
+        """Loga cada mudança do que o STT está ouvindo, com o tempo de escuta."""
+        partial = self._stt.partial()
+        if partial == self._partial:
+            return
+        if not self._partial:
+            log.info("Escuta: voz detectada aos %.1fs: %r.", heard_after_s, partial)
+        elif not partial:
+            log.info("Escuta: o Vosk desistiu de %r aos %.1fs.", self._partial, heard_after_s)
+        else:
+            log.info("Escuta: parcial aos %.1fs: %r.", heard_after_s, partial)
+        self._partial = partial
+        self._partial_at_s = heard_after_s
 
     def _match(self, transcript: Transcript, heard_after_s: float) -> Command | None:
         """Decide se a transcrição vira comando. Todo "não" é logado e contado."""

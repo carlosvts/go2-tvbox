@@ -80,6 +80,18 @@ class Microphone:
         """Bloqueia até ter um chunk. Levanta OSError se o microfone cair."""
         return downsample(self._stream.read(self._frames_48k, exception_on_overflow=False))
 
+    def drop_backlog(self, max_backlog_s: float) -> int:
+        """Joga fora o áudio acumulado se passar de `max_backlog_s`.
+
+        Devolve quantos chunks descartou (0 se o acúmulo estava dentro do limite).
+        """
+        pending = self._stream.get_read_available() // self._frames_48k
+        if pending * self._frames_48k / CAPTURE_RATE <= max_backlog_s:
+            return 0
+        for _ in range(pending):
+            self._stream.read(self._frames_48k, exception_on_overflow=False)
+        return pending
+
     def close(self) -> None:
         self._stream.close()
         self._pa.terminate()

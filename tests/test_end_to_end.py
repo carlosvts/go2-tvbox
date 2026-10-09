@@ -42,7 +42,11 @@ def pcm(tmp_path):
 def test_edge_fala_vira_post_na_api(api, pcm, monkeypatch):  # noqa: F811
     monkeypatch.setattr(edge, "Microphone", lambda name, chunk_ms: FakeMicrophone(pcm))
     config = load_config(
-        env={"SENSE_MODE": "edge", "GO2_API_URL": f"http://127.0.0.1:{api.server_port}"}
+        env={
+            "SENSE_MODE": "edge",
+            "GO2_API_URL": f"http://127.0.0.1:{api.server_port}",
+            "STT_MODE": "gramatica",
+        }
     )
     with pytest.raises(EndOfAudio):
         edge.run(config)
@@ -64,7 +68,11 @@ def test_thin_audio_pela_rede_vira_post_e_o_beep_volta(api, pcm):  # noqa: F811
     probe.close()
     config = load_config(
         RECEIVER,
-        env={"GO2_API_URL": f"http://127.0.0.1:{api.server_port}", "RECEIVER_PORT": str(port)},
+        env={
+            "GO2_API_URL": f"http://127.0.0.1:{api.server_port}",
+            "RECEIVER_PORT": str(port),
+            "STT_MODE": "gramatica",
+        },
     )
     threading.Thread(target=receiver.run, args=(config,), daemon=True).start()
 

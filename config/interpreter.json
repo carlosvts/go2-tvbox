@@ -1,0 +1,42 @@
+{
+  "limiares": {"slot": 80, "acao": 85, "parada": 75},
+  "fuzzy_min_letras": 4,
+  "negacao": ["não", "nunca"],
+  "preposicoes": ["para", "pra", "pro"],
+  "verbos": {
+    "andar": ["andar", "anda", "ande", "caminhar", "caminha", "caminhe", "vai", "vá", "avançar", "avança", "avance"],
+    "girar": ["girar", "gira", "gire", "virar", "vira", "vire", "rotacionar", "rotaciona", "rotacione"]
+  },
+  "direcoes": {
+    "frente": ["frente", "adiante"],
+    "tras": ["trás", "atrás", "traz", "ré"],
+    "direita": ["direita"],
+    "esquerda": ["esquerda"]
+  },
+  "parada": {"id": "parar", "palavras": ["para", "pare", "parar", "stop"], "max_palavras": 2},
+  "acoes": {
+    "sentar": ["senta", "sentar", "sente"],
+    "levantar": ["levanta", "levantar", "levante"],
+    "deitar": ["deita", "deitar", "deite"],
+    "acenar": ["acena", "acenar", "cumprimenta", "cumprimentar", "cumprimente"],
+    "alongar": ["alonga", "alongar", "alongue"],
+    "coracao": ["coração"],
+    "desligar_motores": ["desligar motores", "desliga motores", "desligue motores"]
+  },
+  "comandos": {
+    "andar_frente": {"command": "move", "args": {"vx": 1.0, "vy": 0.0, "vyaw": 0.0, "duration_s": 3.0}},
+    "andar_tras": {"command": "move", "args": {"vx": -0.5, "vy": 0.0, "vyaw": 0.0, "duration_s": 1.0}},
+    "andar_direita": {"command": "move", "args": {"vx": 0.0, "vy": -0.5, "vyaw": 0.0, "duration_s": 1.0}},
+    "andar_esquerda": {"command": "move", "args": {"vx": 0.0, "vy": 0.5, "vyaw": 0.0, "duration_s": 1.0}},
+    "girar_direita": {"command": "move", "args": {"vx": 0.0, "vy": 0.0, "vyaw": -0.5, "duration_s": 1.0}},
+    "girar_esquerda": {"command": "move", "args": {"vx": 0.0, "vy": 0.0, "vyaw": 0.5, "duration_s": 1.0}},
+    "parar": "stop",
+    "sentar": "sit",
+    "levantar": "stand_up",
+    "deitar": "stand_down",
+    "acenar": "hello",
+    "alongar": "stretch",
+    "coracao": "finger_heart",
+    "desligar_motores": "damp"
+  }
+}

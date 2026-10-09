@@ -11,6 +11,7 @@ def test_edge_valido():
     assert config.api_url == API  # sem a barra final
     assert config.receiver_host is None
     assert config.chunk_ms == 30
+    assert config.stt_mode == "livre"
 
 
 def test_thin_valido_nao_exige_url_da_api():
@@ -36,6 +37,7 @@ def test_receiver_exige_url_mas_nao_sense_mode():
         ({"SENSE_MODE": "edge"}, "GO2_API_URL não definido"),
         ({"SENSE_MODE": "edge", "GO2_API_URL": "192.168.0.10:8000"}, "GO2_API_URL=.* inválido"),
         ({"SENSE_MODE": "thin"}, "RECEIVER_HOST não definido"),
+        ({"SENSE_MODE": "edge", "GO2_API_URL": API, "STT_MODE": "solto"}, "STT_MODE='solto' inválido"),
         ({"SENSE_MODE": "edge", "GO2_API_URL": API, "AUDIO_CHUNK_MS": "100"}, "AUDIO_CHUNK_MS=100 fora"),
         ({"SENSE_MODE": "edge", "GO2_API_URL": API, "WAKE_THRESHOLD": "alto"}, "WAKE_THRESHOLD='alto' não é"),
     ],

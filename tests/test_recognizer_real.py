@@ -1,5 +1,9 @@
 """Reconhecedor com os motores reais e fala sintética do espeak-ng.
 
+Roda no modo `gramatica`: sem gramática, o Vosk não entende o espeak-ng
+("desligar motores" vira "ricardo"), então o modo livre só se testa com voz
+de gente.
+
 Pulado se faltar o extra `recognition`, os modelos (scripts/download_models.py),
 o espeak-ng ou o sox. Voz sintética não diz nada sobre a acurácia com gente de
 verdade: o teste só prova que wake word, gramática e lookup estão ligados.
@@ -15,7 +19,9 @@ import pytest
 from sense.commands import load_commands
 from sense.config import load_config
 
-CONFIG = load_config(env={"SENSE_MODE": "edge", "GO2_API_URL": "http://api:8000"})
+CONFIG = load_config(
+    env={"SENSE_MODE": "edge", "GO2_API_URL": "http://api:8000", "STT_MODE": "gramatica"}
+)
 
 pytest.importorskip("openwakeword")
 pytest.importorskip("vosk")

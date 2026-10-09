@@ -19,6 +19,7 @@ capture = [
 # PC que roda o receptor do modo thin.
 recognition = [
     "openwakeword==0.6.0",
+    "rapidfuzz>=3.0",
     "vosk>=0.3.45",
 ]
 

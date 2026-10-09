@@ -12,7 +12,9 @@ log = logging.getLogger(__name__)
 # nesse caso (RestartPreventExitStatus=2): reiniciar não conserta um .env errado.
 EXIT_BAD_CONFIG = 2
 
-_RECOGNITION = ("vosk_model_path", "wake_threshold", "stt_min_confidence", "command_timeout_s")
+_RECOGNITION = (
+    "vosk_model_path", "stt_mode", "wake_threshold", "stt_min_confidence", "command_timeout_s",
+)
 _RELEVANT = {
     "edge": ("api_url", "chunk_ms", "mic_name", "cooldown_s", *_RECOGNITION),
     "thin": ("receiver_host", "receiver_port", "chunk_ms", "mic_name"),

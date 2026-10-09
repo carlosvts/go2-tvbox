@@ -37,4 +37,4 @@ class RingBuffer:
 
 def _even(n_bytes: float) -> int:
     """Arredonda para um número inteiro de amostras (2 bytes cada)."""
-    return int(n_bytes) // 2 * 2
+    return round(n_bytes / 2) * 2

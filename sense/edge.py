@@ -14,7 +14,7 @@ from sense.audio import Microphone, play_sound
 from sense.commands import load_commands
 from sense.config import Config
 from sense.dispatcher import Dispatcher
-from sense.fallback_client import FallbackClient, Outcome, Utterance
+from sense.fallback_client import OUTCOME_SOUNDS, FallbackClient, Utterance
 from sense.obstacle_guard import ObstacleGuard
 from sense.recognizer import Decision, Kind, build_recognizer
 from sense.stats import Stats
@@ -27,14 +27,6 @@ MAX_BACKLOG_S = 0.2
 
 # Nome, no commands.json, do comando que faz o robô andar ou girar.
 MOVE_COMMAND = "move"
-
-# Som de retorno para cada resultado do fallback.
-OUTCOME_SOUNDS = {
-    Outcome.CONFIRMED: "confirmed",
-    Outcome.REJECTED: "rejected",
-    Outcome.UNCONFIRMED: "unconfirmed",
-}
-
 
 class Executor:
     """Executa uma decisão do reconhecedor."""

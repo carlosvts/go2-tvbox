@@ -44,6 +44,11 @@ class FakeServer(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(answer if isinstance(answer, bytes) else json.dumps(answer).encode())
 
+    def do_GET(self):
+        self.send_response(200 if self.path == "/health" else 404)
+        self.end_headers()
+        self.wfile.write(b'{"status": "ok"}')
+
     def log_message(self, *args):
         pass
 

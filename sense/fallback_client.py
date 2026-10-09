@@ -6,6 +6,7 @@ interpreta, enfileira e chama a go2-api é o servidor: nada do que ele responde
 
     POST /v1/utterance   multipart: `audio` (WAV mono 16 kHz PCM16) + `meta` (JSON)
     POST /v1/cancel      JSON: {"reason": "stop" | "local_command"}
+    GET  /health         só para saber, na partida, se o servidor está no ar
 
 Uma tentativa por chamada, sem retry e sem fila: no máximo uma frase em voo, e
 as que chegarem nesse meio tempo são recusadas por `submit`.
@@ -35,12 +36,32 @@ class Outcome(Enum):
     UNCONFIRMED = "não confirmado"  # timeout, rede ou resposta ilegível
 
 
+# Som de retorno (`media/<nome>.wav`) de cada resultado.
+OUTCOME_SOUNDS = {
+    Outcome.CONFIRMED: "confirmed",
+    Outcome.REJECTED: "rejected",
+    Outcome.UNCONFIRMED: "unconfirmed",
+}
+
+
 @dataclass(frozen=True)
 class Utterance:
     audio: bytes  # PCM 16 kHz mono s16le
-    reason: str  # "unk", "low_conf" ou "too_long"
-    hypothesis: str  # o que a gramática local ouviu
-    confidence: float
+    reason: str  # "unk", "low_conf", "too_long" (edge) ou "wake_word" (thin)
+    hypothesis: str | None  # o que a gramática local ouviu; None no thin
+    confidence: float | None
+    utterance_id: str | None = None  # None = o cliente cria um
+
+
+@dataclass(frozen=True)
+class Reply:
+    """O que voltou de um envio. Só serve para retorno e log, nunca para executar."""
+
+    outcome: Outcome
+    utterance_id: str
+    status: str | None = None  # o `status` do servidor, se ele respondeu
+    transcript: str | None = None
+    error: str | None = None  # por que não houve confirmação
 
 
 def wav_bytes(pcm: bytes) -> bytes:
@@ -88,8 +109,14 @@ class FallbackClient:
         self._on_outcome = on_outcome
         self._in_flight = threading.Lock()
 
-    def submit(self, utterance: Utterance) -> bool:
-        """Envia a frase em segundo plano. False se já há uma em voo (descartada)."""
+    def submit(
+        self, utterance: Utterance, on_reply: Callable[[Reply], None] | None = None
+    ) -> bool:
+        """Envia a frase em segundo plano. False se já há uma em voo (descartada).
+
+        O resultado vai para `on_reply`, se dado; senão, para o `on_outcome`
+        do construtor.
+        """
         if not self._in_flight.acquire(blocking=False):
             log.info("Fallback descartado (%s): já há uma frase em voo.", utterance.reason)
             self._counters["fallback_busy_discards"] += 1
@@ -97,17 +124,24 @@ class FallbackClient:
 
         def run() -> None:
             try:
-                outcome = self.send_utterance(utterance)
+                reply = self.send(utterance)
             finally:
                 self._in_flight.release()
-            self._on_outcome(outcome)
+            if on_reply is not None:
+                on_reply(reply)
+            else:
+                self._on_outcome(reply.outcome)
 
         threading.Thread(target=run, name="fallback", daemon=True).start()
         return True
 
     def send_utterance(self, utterance: Utterance) -> Outcome:
+        """Faz o POST e espera a resposta; devolve só o resultado."""
+        return self.send(utterance).outcome
+
+    def send(self, utterance: Utterance) -> Reply:
         """Faz o POST e espera a resposta. Só lê `status` e `transcript`."""
-        utterance_id = str(uuid.uuid4())
+        utterance_id = utterance.utterance_id or str(uuid.uuid4())
         meta = {
             "utterance_id": utterance_id,
             "edge_id": self._edge_id,
@@ -132,23 +166,32 @@ class FallbackClient:
             # O servidor respondeu com erro; não dá para saber o que ele fez.
             log.warning("Fallback %s não confirmado: HTTP %d.", utterance_id, error.code)
             self._counters["fallback_unconfirmed"] += 1
-            return Outcome.UNCONFIRMED
+            return Reply(Outcome.UNCONFIRMED, utterance_id, error=f"HTTP {error.code}")
         except (OSError, ValueError, KeyError, AttributeError) as error:
             # Timeout, rede ou resposta ilegível. O servidor pode ter recebido e
             # executado a frase mesmo assim.
             log.warning("Fallback %s não confirmado: %s.", utterance_id, error)
             self._counters["fallback_unconfirmed"] += 1
-            return Outcome.UNCONFIRMED
+            return Reply(Outcome.UNCONFIRMED, utterance_id, error=str(error) or repr(error))
 
         if status in self._ok_statuses:
             log.info(
                 "Fallback %s confirmado: status=%s transcript=%r.", utterance_id, status, transcript
             )
             self._counters["fallback_confirmed"] += 1
-            return Outcome.CONFIRMED
+            return Reply(Outcome.CONFIRMED, utterance_id, status, transcript)
         log.info("Fallback %s recusado: status=%s transcript=%r.", utterance_id, status, transcript)
         self._counters["fallback_rejected"] += 1
-        return Outcome.REJECTED
+        return Reply(Outcome.REJECTED, utterance_id, status, transcript)
+
+    def healthy(self) -> bool:
+        """O servidor responde ao `GET /health`? Só informativo."""
+        try:
+            with urllib.request.urlopen(self._server_url + "/health", timeout=self._timeout_s):
+                return True
+        except OSError as error:
+            log.warning("Servidor de inferência não respondeu ao /health: %s.", error)
+            return False
 
     def cancel(self, reason: str) -> None:
         """Avisa o servidor, sem esperar: uma falha aqui só vira log."""

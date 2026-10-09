@@ -15,7 +15,8 @@ dependencies = [
 capture = [
     "pyaudio>=0.2.13",
 ]
-# Wake word + STT. Separado para os testes sem modelos rodarem sem ele.
+# Wake word + STT. O modo thin só usa o openwakeword; o vosk fica instalado
+# mas não é carregado.
 recognition = [
     "openwakeword==0.6.0",
     "vosk>=0.3.45",

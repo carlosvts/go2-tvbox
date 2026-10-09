@@ -38,10 +38,10 @@ import numpy as np
 from sense.commands import Command, CommandMap
 from sense.config import SAMPLE_RATE, Config
 from sense.ring_buffer import RingBuffer
+from sense.wake import OpenWakeWordEngine
 
 log = logging.getLogger(__name__)
 
-WAKE_WORD = "hey_jarvis"
 # Áudio jogado fora logo após a wake word: é o eco dela e do beep.
 POST_WAKE_DISCARD_S = 0.9
 # Depois de uma escuta, a wake word fica ignorada por este tempo, para o áudio
@@ -103,22 +103,6 @@ class SttEngine(Protocol):
         """Devolve o que foi ouvido até agora (usado no timeout)."""
 
     def reset(self) -> None: ...
-
-
-class OpenWakeWordEngine:
-    def __init__(self) -> None:
-        import numpy as np
-        from openwakeword.model import Model
-
-        self._np = np
-        self._model = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
-
-    def score(self, chunk: bytes) -> float:
-        audio = self._np.frombuffer(chunk, dtype=self._np.int16)
-        return float(self._model.predict(audio)[WAKE_WORD])
-
-    def reset(self) -> None:
-        self._model.reset()
 
 
 class VoskEngine:
@@ -348,10 +332,10 @@ def build_recognizer(
     on_wake: Callable[[], None] = lambda: None,
 ) -> Recognizer:
     """Monta o reconhecedor com os motores reais (openWakeWord + Vosk)."""
-    wake = OpenWakeWordEngine()
+    wake = OpenWakeWordEngine(config.wake_word)
     stt = VoskEngine(config.vosk_model_path, commands.grammar)
     log.info(
         "Reconhecedor pronto: wake word %s (limiar %.2f), Vosk %s, %d frases na gramática.",
-        WAKE_WORD, config.wake_threshold, config.vosk_model_path.name, len(commands.grammar),
+        config.wake_word, config.wake_threshold, config.vosk_model_path.name, len(commands.grammar),
     )
     return Recognizer(wake, stt, commands, config, counters, on_wake)

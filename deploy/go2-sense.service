@@ -11,7 +11,7 @@
 # Logs: journalctl --namespace=go2-sense -f
 
 [Unit]
-Description=Go2 Sense: voz para a go2-api
+Description=Go2 Sense: voz para a go2-api (modo em SENSE_MODE no .env)
 After=network-online.target sound.target
 Wants=network-online.target
 

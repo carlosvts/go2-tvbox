@@ -42,6 +42,6 @@ def start() -> Config:
         sys.exit(EXIT_BAD_CONFIG)
 
     settings = " ".join(f"{field.name}={getattr(config, field.name)}" for field in fields(config))
-    log.info("Sense iniciando | código=%s", git_revision())
+    log.info("Sense iniciando | modo=%s | código=%s", config.mode, git_revision())
     log.info("Configuração: %s", settings)
     return config

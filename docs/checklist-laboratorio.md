@@ -80,6 +80,27 @@ Medições da rodada (mesma tabela da rodada 1, mais):
 | Tempo do fim da fala até o som de resultado | cronômetro ou vídeo | |
 | Áudio descartado por atraso | `chunks_dropped_late` | |
 
+## 3. Rodada thin
+
+- [ ] Servidor de inferência no ar. `SENSE_MODE=thin` e `SERVER_URL` no `.env`; reinicie; anote a hora.
+- [ ] O log mostra `modo=thin`, `Wake word pronta` e `Servidor de inferência no ar`. Não aparece `Reconhecedor pronto` (o Vosk não carrega); anote o `ram_pico` da linha `Diagnóstico` e compare com o do edge.
+- [ ] `uv run python -m sense.stop` para o robô, com o servidor no ar e fora do ar.
+- [ ] "hey jarvis", pausa, comando: beep, depois o som de "processando" e o do resultado. O log traz `Comando gravado: X.Xs de áudio` e uma linha `Interação: {...}`.
+- [ ] "hey jarvis anda para frente" de uma vez só: confira na transcrição do servidor se a wake word (ou o final dela) aparece no texto.
+- [ ] "hey jarvis" e silêncio: som de recusa depois de ~5 s, `result: no_speech`, nada enviado.
+- [ ] "hey jarvis" de novo antes de a resposta chegar: `Wake word ignorada: ainda esperando a resposta`.
+- [ ] Com `SAVE_UTTERANCES_DIR=utterances`, ouça alguns WAVs: o comando está inteiro? O beep cobre o começo dele? O fim foi cortado cedo?
+- [ ] Pare o serviço e anote a linha `Encerrando. Resumo: ...`.
+
+Medições da rodada:
+
+| Medida | Como obter | Valor |
+|---|---|---|
+| Contagem por resultado | resumo no encerramento | |
+| Latência fim da fala → resposta (média e p95) | resumo no encerramento | |
+| Wake words sem fala (possíveis falsos disparos) | resumo no encerramento | |
+| CPU e pico de RAM | linha `Diagnóstico` | |
+
 ## 4. Fechamento
 
 - [ ] `journalctl --namespace=go2-sense | grep "Sense iniciando"` lista as partidas, com horário e commit.
@@ -104,3 +125,4 @@ Tudo abaixo foi escrito sem poder ser executado; se algo falhar no laboratório,
 9. **Robô.** Os POSTs foram testados contra uma API falsa e o `validate_commands.py` contra a go2-api real sem robô. Nenhum comando chegou a um Go2.
 10. **Fim de fala por volume.** No fallback, a escuta só termina depois de 0,6 s sem voz, e "voz" é volume acima de 3× o ruído de fundo. Com microfone e ruído reais isso pode cortar cedo ou esticar até `MAX_UTTERANCE_S`; os números estão no topo de `sense/recognizer.py`.
 11. **Sons de retorno.** São tons gerados por `scripts/generate_sounds.py`; nunca tocaram no Anker, e não sei se o volume está bom nem se o som de "processando" atrapalha a próxima wake word.
+12. **Modo thin inteiro com hardware.** A máquina de estados foi testada com wake word e servidor falsos. Os limiares do fim de fala por volume (`VAD_*`), o beep dentro do áudio enviado e o `reason: "wake_word"` com campos nulos contra o servidor real não foram exercitados.

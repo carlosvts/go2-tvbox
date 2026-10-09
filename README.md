@@ -18,6 +18,22 @@ thin   [Anker] → TV Box: captura ──TCP──▶ PC: reconhecimento ──H
 
 O reconhecimento é o mesmo componente nos dois modos (`sense/recognizer.py`); só muda de onde vem o áudio.
 
+## Índice
+
+- [Como rodar](#como-rodar)
+  - [Modo edge (tudo na TV Box)](#modo-edge-tudo-na-tv-box)
+  - [Modo thin (TV Box envia o áudio, PC reconhece)](#modo-thin-tv-box-envia-o-áudio-pc-reconhece)
+  - [Trocar de modo](#trocar-de-modo)
+  - [Como serviço na TV Box](#como-serviço-na-tv-box)
+  - [O que esperar no log](#o-que-esperar-no-log)
+- [Comandos de voz](#comandos-de-voz)
+- [Onde ajustar cada parâmetro](#onde-ajustar-cada-parâmetro)
+- [Diagnóstico](#diagnóstico)
+- [Estrutura](#estrutura)
+- [Testes](#testes)
+- [Especificações da TV Box](#especificações-da-tv-box)
+- [Autores](#autores)
+
 ## Como rodar
 
 Nos dois modos a go2-api precisa estar no ar e alcançável pela rede (`curl http://<IP_DA_API>:8000/status` responde 200). Requer Python 3.10 ou 3.11; o [uv](https://docs.astral.sh/uv/) baixa um se o sistema não tiver.
@@ -288,6 +304,5 @@ O que só o hardware valida está em [docs/checklist-laboratorio.md](docs/checkl
 
 - Samuel Frizzone Cardoso
 - Carlos Vinícius Teixeira de Souza
-- Hugo Prado Lima
 
 NEURON — Núcleo de Estudos de Robótica Interativa da UFLA

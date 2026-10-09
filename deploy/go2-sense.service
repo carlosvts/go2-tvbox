@@ -1,6 +1,5 @@
-# Serviço do Sense na TV Box. O mesmo arquivo serve aos dois modos: quem decide
-# é SENSE_MODE no .env do repo. Trocar de modo = editar o .env e
-# `sudo systemctl restart go2-sense`.
+# Serviço do Sense na TV Box. A configuração vem do .env do repo; depois de
+# editá-lo, `sudo systemctl restart go2-sense`.
 #
 # Instalação (ajuste User e os dois caminhos se o repo não estiver em
 # /home/minipc/go2-tvbox):
@@ -12,7 +11,7 @@
 # Logs: journalctl --namespace=go2-sense -f
 
 [Unit]
-Description=Go2 Sense: voz para a go2-api (modo em SENSE_MODE no .env)
+Description=Go2 Sense: voz para a go2-api
 After=network-online.target sound.target
 Wants=network-online.target
 

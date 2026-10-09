@@ -1,6 +1,6 @@
 # Checklist de laboratório
 
-Objetivo: rodar o Sense em modo edge e em modo thin na TV Box real, medir RAM, CPU e latência por 10+ minutos em cada um, e confirmar nos logs qual modo cada rodada usou.
+Objetivo: rodar o Sense na TV Box real, primeiro só com a gramática local e depois com o fallback para o servidor de inferência, e medir RAM, CPU e latência por 10+ minutos em cada rodada.
 
 Em todos os comandos, `LOGS` é:
 
@@ -21,14 +21,14 @@ journalctl --namespace=go2-sense --since "<hora de início da rodada>"
 - [ ] `uv sync --no-dev --extra capture --extra recognition` terminou sem erro.
 - [ ] `uv run python scripts/download_models.py` terminou sem erro.
 - [ ] `df -h /` anotado de novo (quanto a instalação consumiu).
-- [ ] `cp .env.example .env`, com `GO2_API_URL` e `RECEIVER_HOST` reais.
+- [ ] `cp .env.example .env`, com `GO2_API_URL` real e sem `SERVER_URL`.
 - [ ] `uv run python scripts/validate_commands.py` imprime `OK` (anote a versão da API).
 - [ ] Serviço instalado conforme o topo de `deploy/go2-sense.service` (ajustar `User` e caminhos).
 
-## 1. Rodada edge
+## 1. Rodada só com a gramática (sem `SERVER_URL`)
 
-- [ ] `.env` com `SENSE_MODE=edge`; `sudo systemctl restart go2-sense`; anote a hora.
-- [ ] `LOGS | grep "Sense iniciando"` mostra `modo=edge` e o commit esperado.
+- [ ] `sudo systemctl restart go2-sense`; anote a hora.
+- [ ] `LOGS | grep "Sense iniciando"` mostra o commit esperado, e o log traz `SERVER_URL não definido: fallback desligado`.
 - [ ] O log mostra `Microfone aberto: ...` com `card ALSA:` diferente de `None`.
 - [ ] O log mostra `Reconhecedor pronto: ...`.
 - [ ] "hey jarvis": toca o beep e o log mostra `Wake word detectada`.
@@ -54,38 +54,38 @@ Medições da rodada:
 
 A latência **da fala** até o POST é a latência wake word → POST menos o tempo que a pessoa levou para falar a frase; para isolar, cronometre ou grave um vídeo de uma rodada.
 
-## 2. Troca para thin (só `.env` + restart)
+### Desvio de obstáculo
 
-- [ ] No PC: `uv sync --no-dev --extra recognition`, `uv run python scripts/download_models.py`, porta TCP 9876 liberada no firewall.
-- [ ] No PC: `GO2_API_URL=<API> uv run python -m sense.receiver` mostra `modo=receiver` e `Reconhecedor pronto`.
-- [ ] Na TV Box: **só** trocar `SENSE_MODE=thin` no `.env` e `sudo systemctl restart go2-sense`. Nenhum `git checkout`, nenhum `uv sync`. Anote a hora.
-- [ ] `LOGS | grep "Sense iniciando"` mostra `modo=thin` e **o mesmo commit** da rodada edge.
-- [ ] Log da TV Box: `Conectado ao receptor ...`. Log do PC: `TV Box conectada: ...`.
+- [ ] go2-api com `GET /safety/obstacle-avoidance` respondendo `enabled: true` ou `false` (se vier `null`, todo movimento é barrado: anote o `raw` e ajuste a go2-api).
+- [ ] Desligue o desvio (`PUT` com `{"enabled": false}`) e diga "andar para frente": o log mostra `Desvio de obstáculo desligado: mandando ligar` e `Desvio de obstáculo ligado`, e só então `Enviado: move`.
+- [ ] Com uma caixa a 1 m na frente, "andar para frente": anote se o robô para, desvia ou encosta. É o teste que diz se o desvio vale para o `move` da API.
+- [ ] "senta" e "para" funcionam mesmo com a go2-api sem o endpoint (nesse caso só os movimentos são barrados).
 
-## 3. Rodada thin
+## 2. Rodada com o fallback
 
-- [ ] Repita os itens de voz da rodada edge (wake word, frases × 3, frase fora do mapa, cooldown). O beep toca na TV Box; `Wake word detectada` e `Enviado:` aparecem no log **do PC**.
-- [ ] Deixe rodando **10+ minutos**, do mesmo jeito.
-- [ ] Desligue o receptor por 20 s e religue: a TV Box loga `Conexão com o receptor perdida`, depois `Conectado ao receptor`, e `tcp_reconnects` sobe.
+- [ ] Servidor de inferência no ar. Ponha `SERVER_URL` (e, se quiser, `EDGE_ID`) no `.env` e reinicie; anote a hora.
+- [ ] Frase conhecida ("senta"): executa como antes, e o servidor recebe `POST /v1/cancel` com `local_command`.
+- [ ] "para": o robô para; o log da TV Box mostra `Parada:` e o servidor recebe `POST /v1/cancel` com `stop`. Nenhum `/v1/utterance` para essa fala.
+- [ ] "andar para frente": anda, **não** para. Se parar, o log `Parada: ...` mostra o que o Vosk ouviu.
+- [ ] Frase livre ("por favor anda um pouco para frente"): toca o som de "processando", o log mostra `Fallback (...)` e `Fallback: X.Xs de áudio`, e depois toca o som do resultado. Confira no servidor se o áudio recebido tem a frase inteira.
+- [ ] Duas frases livres em seguida, a segunda antes de a primeira responder: a segunda é descartada (`Fallback descartado ... já há uma frase em voo`).
+- [ ] Derrube o servidor e diga uma frase livre: som de "não confirmado" e log `Fallback ... não confirmado`. "para" e "senta" continuam funcionando; o log traz `Cancel (...) não chegou ao servidor`.
+- [ ] Wake word seguida de silêncio, 5 vezes: nenhuma chamada ao servidor (`fallback_sent` não cresce). Se crescer, o ruído do ambiente está passando por voz.
 
-Medições da rodada (mesma tabela, com estas diferenças):
+Medições da rodada (mesma tabela da rodada 1, mais):
 
 | Medida | Como obter | Valor |
 |---|---|---|
-| CPU e RAM da TV Box | `LOGS \| grep Diagnóstico` na TV Box | |
-| CPU e RAM do receptor | linha `Diagnóstico` no terminal do PC | |
-| Latência wake word → POST | horários de `Wake word detectada` e `Enviado:` no log do PC | |
-| Áudio descartado por atraso | `chunks_dropped_late` (TV Box) | |
-| Áudio atrasado na chegada | `chunks_late` (PC) | |
-| Lacunas | `gaps` e `chunks_missing` (PC) | |
-| Reconexões | `tcp_reconnects` (TV Box) | |
+| Frases enviadas / confirmadas / recusadas / sem resposta | `fallback_sent`, `fallback_confirmed`, `fallback_rejected`, `fallback_unconfirmed` | |
+| Tempo do fim da fala até o som de resultado | cronômetro ou vídeo | |
+| Áudio descartado por atraso | `chunks_dropped_late` | |
 
 ## 4. Fechamento
 
-- [ ] `journalctl --namespace=go2-sense | grep "Sense iniciando"` lista as duas partidas, com horário, `modo=edge` / `modo=thin` e commit: é o registro de qual modo cada rodada usou.
+- [ ] `journalctl --namespace=go2-sense | grep "Sense iniciando"` lista as partidas, com horário e commit.
 - [ ] `journalctl --namespace=go2-sense --disk-usage` está abaixo de 20 MB.
 - [ ] `df -h /` final anotado.
-- [ ] Teste de configuração inválida: `SENSE_MODE=xyz` no `.env` e restart. O log lista o problema e `systemctl status go2-sense` mostra o serviço parado (sem ficar reiniciando). Volte o valor correto.
+- [ ] Teste de configuração inválida: `GO2_API_URL=xyz` no `.env` e restart. O log lista o problema e `systemctl status go2-sense` mostra o serviço parado (sem ficar reiniciando). Volte o valor correto.
 - [ ] Teste de API fora do ar: pare a go2-api e dê um comando. Log `Descartado: ... API fora do ar`; ao religar a API, o comando antigo **não** é enviado.
 - [ ] Teste de microfone: desconecte o Anker por 10 s e reconecte. O serviço reinicia sozinho e volta a ouvir.
 
@@ -97,8 +97,10 @@ Tudo abaixo foi escrito sem poder ser executado; se algo falhar no laboratório,
 2. **`sense/audio.py` inteiro.** A classe `Microphone` nunca abriu um dispositivo real: a busca pelo nome, a abertura a 48 kHz mono, o `drop_backlog` e o número do card ALSA tirado do nome (`hw:N,0`). Se o nome vier em outro formato, o beep fica mudo e o log mostra `card ALSA: None`.
 3. **Beep.** `aplay` no card do Anker, e se o eco dele atrapalha o reconhecimento (os 0,9 s de descarte vêm do servidor antigo).
 4. **Acurácia com voz real.** Wake word e frases só foram testadas com voz sintética do `espeak-ng`. Com ela, entre as frases curtas só "alonga" e "desligar motores" saíram certas; "deita" saiu com confiança abaixo do limiar e "levanta", "senta", "para" e "coração" não foram reconhecidas. Os limiares `WAKE_THRESHOLD` e `STT_MIN_CONFIDENCE` são pontos de partida, não valores calibrados.
-5. **CPU e RAM na TV Box.** Não sei se openWakeWord + Vosk rodam em tempo real nos 4 núcleos ARM com 1,8 GB. Se não rodarem, `chunks_dropped_late` cresce no modo edge.
+5. **CPU e RAM na TV Box.** Não sei se openWakeWord + Vosk rodam em tempo real nos 4 núcleos ARM com 1,8 GB. Se não rodarem, `chunks_dropped_late` cresce.
 6. **Decimação 48 kHz → 16 kHz sem filtro.** Mantida igual à do cliente antigo; pode custar acurácia.
-7. **Rede real.** O transporte foi testado em loopback. Wi-Fi com perda, o tamanho efetivo dos buffers de 8 KB e os contadores de atraso em rede de verdade não foram exercitados.
+7. **Servidor de inferência real.** O cliente só falou com um servidor falso. Os valores de `status` que contam como confirmado (`FALLBACK_OK_STATUSES`) são um palpite, e o formato exato que o servidor espera no multipart e no `/v1/cancel` não foi conferido contra ele.
 8. **Serviço systemd.** A unit não foi instalada em lugar nenhum: usuário `minipc`, caminho `/home/minipc/go2-tvbox`, grupo `audio`, `LogNamespace` no systemd do Debian 11 e a ordem de boot em relação ao USB do Anker.
 9. **Robô.** Os POSTs foram testados contra uma API falsa e o `validate_commands.py` contra a go2-api real sem robô. Nenhum comando chegou a um Go2.
+10. **Fim de fala por volume.** No fallback, a escuta só termina depois de 0,6 s sem voz, e "voz" é volume acima de 3× o ruído de fundo. Com microfone e ruído reais isso pode cortar cedo ou esticar até `MAX_UTTERANCE_S`; os números estão no topo de `sense/recognizer.py`.
+11. **Sons de retorno.** São tons gerados por `scripts/generate_sounds.py`; nunca tocaram no Anker, e não sei se o volume está bom nem se o som de "processando" atrapalha a próxima wake word.

@@ -1,7 +1,7 @@
-"""Microfone e beep da TV Box (Anker PowerConf via ALSA).
+"""Microfone e sons da TV Box (Anker PowerConf via ALSA).
 
-`pyaudio` é importado só ao abrir o microfone: o PC que roda o receptor do
-modo thin importa este pacote sem ter PyAudio instalado.
+`pyaudio` é importado só ao abrir o microfone, para os testes rodarem num PC
+sem PyAudio instalado.
 """
 
 import logging
@@ -16,7 +16,9 @@ log = logging.getLogger(__name__)
 
 CAPTURE_RATE = 48000  # taxa nativa do Anker
 DOWNSAMPLE_RATIO = CAPTURE_RATE // SAMPLE_RATE  # 3
-BEEP_FILE = REPO_ROOT / "media" / "beep.wav"
+MEDIA_DIR = REPO_ROOT / "media"
+# Sons de `media/`: `beep` (wake word) e o retorno do fallback (`processing`,
+# `confirmed`, `rejected`, `unconfirmed`, gerados por scripts/generate_sounds.py).
 
 
 class MicrophoneError(Exception):
@@ -48,7 +50,7 @@ class Microphone:
             for i in range(self._pa.get_device_count())
         ]
         # Abre de verdade em vez de confiar em maxInputChannels, que pode vir 0
-        # de forma espúria logo após o boot (ver legacy/scripts/find_mic_index.py).
+        # de forma espúria logo após o boot (visto no cliente antigo).
         for index, name in enumerate(names):
             if mic_name.lower() not in name.lower():
                 continue
@@ -97,15 +99,15 @@ class Microphone:
         self._pa.terminate()
 
 
-def play_beep(card: int | None) -> None:
-    """Toca o beep pelo alto-falante do Anker, sem esperar terminar."""
+def play_sound(card: int | None, name: str) -> None:
+    """Toca `media/<name>.wav` pelo alto-falante do Anker, sem esperar terminar."""
     if card is None:
         return
     try:
         subprocess.Popen(
-            ["aplay", "-D", f"plughw:{card},0", "--quiet", str(BEEP_FILE)],
+            ["aplay", "-D", f"plughw:{card},0", "--quiet", str(MEDIA_DIR / f"{name}.wav")],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
     except OSError as error:
-        log.warning("Beep não tocou: %s", error)
+        log.warning("Som %r não tocou: %s", name, error)

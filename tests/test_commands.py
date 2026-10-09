@@ -24,6 +24,14 @@ def test_desligar_motores_e_damp():
     assert (damp.method, damp.endpoint, damp.body) == ("POST", "/commands/posture", {"cmd": "damp"})
 
 
+def test_palavras_de_parada_apontam_para_o_stop():
+    commands = load_commands()
+    assert commands.stop_words == {"para", "pare", "parar", "stop"}
+    assert commands.stop.endpoint == "/commands/stop"
+    assert all(commands.lookup(word) == commands.stop for word in commands.stop_words)
+    assert commands.has_stop_word("andar PARA frente") and not commands.has_stop_word("levanta")
+
+
 def test_stop_nao_tem_corpo():
     stop = load_commands().lookup("para")
     assert (stop.endpoint, stop.body) == ("/commands/stop", None)
@@ -43,7 +51,7 @@ def test_frases_de_movimento_levam_os_valores_no_corpo():
     commands = load_commands()
     frente = commands.lookup("andar para frente")
     assert (frente.method, frente.endpoint) == ("POST", "/commands/move")
-    assert frente.body == {"vx": 1.0, "vy": 0.0, "vyaw": 0.0, "duration_s": 3.0}
+    assert frente.body == {"vx": 0.3, "vy": 0.0, "vyaw": 0.0, "duration_s": 1.0}
     assert commands.lookup("andar para trás").body["vx"] == -0.5
     assert commands.lookup("virar para a direita").body["vyaw"] == -0.5
     assert commands.lookup("virar para a esquerda").body["vyaw"] == 0.5
@@ -64,6 +72,10 @@ def test_cumprimentar_e_cumprimente_sao_hello():
     [
         ({"phrases": {"senta": "sitt"}, "commands": {"sit": CMD}}, "comando inexistente 'sitt'"),
         ({"phrases": {"senta": "sit", "Senta!": "sit"}, "commands": {"sit": CMD}}, "repetida"),
+        (
+            {"stop_words": ["para", "pare"], "phrases": {"para": "sit"}, "commands": {"sit": CMD}},
+            "toda palavra de `stop_words`",
+        ),
         (
             {"phrases": {"anda": "move"}, "commands": {"move": {**CMD, "params": ["vx", "vy"]}}},
             "exige args",

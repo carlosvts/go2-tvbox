@@ -35,10 +35,13 @@ class Dispatcher:
         self._last: Command | None = None
         self._last_time = 0.0
 
-    def dispatch(self, command: Command) -> bool:
-        """Envia o comando. Devolve True só se a API respondeu 202."""
+    def dispatch(self, command: Command, cooldown: bool = True) -> bool:
+        """Envia o comando. Devolve True só se a API respondeu 202.
+
+        `cooldown=False` é para a parada: repetida, vai de novo.
+        """
         now = self._clock()
-        if command == self._last and now - self._last_time < self._cooldown_s:
+        if cooldown and command == self._last and now - self._last_time < self._cooldown_s:
             log.info(
                 "Descartado: %s repetido em %.1fs (cooldown de %.1fs).",
                 command.name, now - self._last_time, self._cooldown_s,

@@ -5,6 +5,7 @@ uma vez, em vez de aparecer só no primeiro comando de voz.
 """
 
 import os
+import socket
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,12 +14,6 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Valores aceitos em SENSE_MODE (o que a TV Box faz).
-MODES = ("edge", "thin")
-# Papel do PC no modo thin. Não é um SENSE_MODE: quem o escolhe é o comando
-# `python -m sense.receiver`.
-RECEIVER = "receiver"
 
 SAMPLE_RATE = 16000  # exigido pelo openWakeWord e pelo Vosk
 
@@ -29,10 +24,7 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Config:
-    role: str  # "edge", "thin" ou "receiver"
-    api_url: str | None  # None no thin: quem fala com a API é o receptor
-    receiver_host: str | None  # só no thin
-    receiver_port: int
+    api_url: str
     chunk_ms: int
     mic_name: str
     vosk_model_path: Path
@@ -40,14 +32,22 @@ class Config:
     stt_min_confidence: float
     command_timeout_s: float
     cooldown_s: float
+    # Movimento só sai com o desvio de obstáculo do robô confirmado como ligado.
+    require_obstacle_avoidance: bool
+    # Fallback para o servidor de inferência. Sem `server_url`, fica desligado.
+    server_url: str | None
+    edge_id: str
+    fallback_timeout_s: float
+    cancel_timeout_s: float
+    fallback_ok_statuses: frozenset[str]
+    max_local_utterance_s: float
+    max_utterance_s: float
+    audio_buffer_s: float
+    stop_failsafe: bool
 
 
-def load_config(role: str | None = None, env: Mapping[str, str] | None = None) -> Config:
-    """Monta a configuração do papel `role`.
-
-    Sem `role`, o papel é o valor de SENSE_MODE (caso da TV Box). Sem `env`,
-    lê o `.env` da raiz do repo e depois o ambiente do processo.
-    """
+def load_config(env: Mapping[str, str] | None = None) -> Config:
+    """Monta a configuração. Sem `env`, lê o `.env` da raiz do repo e o ambiente."""
     if env is None:
         load_dotenv(REPO_ROOT / ".env")
         env = os.environ
@@ -70,39 +70,31 @@ def load_config(role: str | None = None, env: Mapping[str, str] | None = None) -
             problems.append(f"{name}={raw} fora da faixa {low:g} a {high:g}")
         return value
 
-    if role is None:
-        role = get("SENSE_MODE")
-        if not role:
-            problems.append(f"SENSE_MODE não definido (use um de: {', '.join(MODES)})")
-        elif role not in MODES:
-            problems.append(f"SENSE_MODE={role!r} inválido (use um de: {', '.join(MODES)})")
+    def flag(name: str, default: bool) -> bool:
+        raw = get(name).lower()
+        if not raw:
+            return default
+        if raw not in ("0", "1", "true", "false"):
+            problems.append(f"{name}={raw!r} inválido (use 1 ou 0)")
+        return raw in ("1", "true")
 
-    api_url = None
-    if role in ("edge", RECEIVER):
-        api_url = get("GO2_API_URL").rstrip("/")
-        parsed = urlparse(api_url)
-        if not api_url:
-            problems.append(f"GO2_API_URL não definido (obrigatório no papel {role})")
-        elif parsed.scheme not in ("http", "https") or not parsed.netloc:
-            problems.append(
-                f"GO2_API_URL={api_url!r} inválido (esperado algo como http://192.168.0.10:8000)"
-            )
-
-    receiver_host = None
-    if role == "thin":
-        receiver_host = get("RECEIVER_HOST")
-        if not receiver_host:
-            problems.append("RECEIVER_HOST não definido (obrigatório no modo thin)")
+    def url(name: str, example: str, required: bool) -> str | None:
+        value = get(name).rstrip("/")
+        parsed = urlparse(value)
+        if not value:
+            if required:
+                problems.append(f"{name} não definido")
+            return None
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            problems.append(f"{name}={value!r} inválido (esperado algo como {example})")
+        return value
 
     model_path = Path(get("VOSK_MODEL_PATH") or "models/vosk-model-small-pt-0.3")
     if not model_path.is_absolute():
         model_path = REPO_ROOT / model_path
 
     config = Config(
-        role=role,
-        api_url=api_url,
-        receiver_host=receiver_host,
-        receiver_port=int(number("RECEIVER_PORT", 9876, 1, 65535)),
+        api_url=url("GO2_API_URL", "http://192.168.0.10:8000", required=True) or "",
         chunk_ms=int(number("AUDIO_CHUNK_MS", 30, 20, 40)),
         mic_name=get("MIC_NAME") or "anker",
         vosk_model_path=model_path,
@@ -110,7 +102,25 @@ def load_config(role: str | None = None, env: Mapping[str, str] | None = None) -
         stt_min_confidence=number("STT_MIN_CONFIDENCE", 0.7, 0, 1),
         command_timeout_s=number("COMMAND_TIMEOUT_S", 2.5, 1, 15),
         cooldown_s=number("COOLDOWN_S", 2.0, 0, 60),
+        require_obstacle_avoidance=flag("REQUIRE_OBSTACLE_AVOIDANCE", True),
+        server_url=url("SERVER_URL", "http://192.168.0.10:9000", required=False),
+        edge_id=get("EDGE_ID") or socket.gethostname(),
+        fallback_timeout_s=number("FALLBACK_TIMEOUT_S", 5.0, 0.5, 60),
+        cancel_timeout_s=number("CANCEL_TIMEOUT_S", 0.5, 0.1, 5),
+        fallback_ok_statuses=frozenset(
+            status.strip().lower()
+            for status in (get("FALLBACK_OK_STATUSES") or "ok,accepted,queued,executed").split(",")
+            if status.strip()
+        ),
+        max_local_utterance_s=number("MAX_LOCAL_UTTERANCE_S", 3.0, 0.5, 15),
+        max_utterance_s=number("MAX_UTTERANCE_S", 8.0, 1, 30),
+        audio_buffer_s=number("AUDIO_BUFFER_S", 10.0, 2, 60),
+        stop_failsafe=flag("STOP_FAILSAFE", True),
     )
+    if config.max_utterance_s < config.command_timeout_s:
+        problems.append("MAX_UTTERANCE_S não pode ser menor que COMMAND_TIMEOUT_S")
+    if config.audio_buffer_s < config.max_utterance_s + 1:
+        problems.append("AUDIO_BUFFER_S tem de ser pelo menos MAX_UTTERANCE_S + 1")
     if problems:
         raise ConfigError("Configuração inválida:\n" + "\n".join(f"  - {p}" for p in problems))
     return config

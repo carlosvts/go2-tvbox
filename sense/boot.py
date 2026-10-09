@@ -1,6 +1,7 @@
-"""Partida comum aos três papéis: logging, validação da config e log de boot."""
+"""Partida: logging, validação da config e log de boot."""
 
 import logging
+from dataclasses import fields
 import subprocess
 import sys
 
@@ -11,14 +12,6 @@ log = logging.getLogger(__name__)
 # Código de saída para configuração inválida. O serviço systemd não reinicia
 # nesse caso (RestartPreventExitStatus=2): reiniciar não conserta um .env errado.
 EXIT_BAD_CONFIG = 2
-
-_RECOGNITION = ("vosk_model_path", "wake_threshold", "stt_min_confidence", "command_timeout_s")
-_RELEVANT = {
-    "edge": ("api_url", "chunk_ms", "mic_name", "cooldown_s", *_RECOGNITION),
-    "thin": ("receiver_host", "receiver_port", "chunk_ms", "mic_name"),
-    "receiver": ("api_url", "receiver_port", "cooldown_s", *_RECOGNITION),
-}
-
 
 def git_revision() -> str:
     """Branch e commit do código em execução, ex.: "sense-mode-config@1a2b3c4"."""
@@ -35,7 +28,7 @@ def git_revision() -> str:
         return "desconhecido"
 
 
-def start(role: str | None = None) -> Config:
+def start() -> Config:
     """Configura o logging, valida a config e loga o que vai rodar."""
     logging.basicConfig(
         level=logging.INFO,
@@ -43,12 +36,12 @@ def start(role: str | None = None) -> Config:
         stream=sys.stdout,
     )
     try:
-        config = load_config(role)
+        config = load_config()
     except ConfigError as error:
         log.critical("%s", error)
         sys.exit(EXIT_BAD_CONFIG)
 
-    settings = " ".join(f"{name}={getattr(config, name)}" for name in _RELEVANT[config.role])
-    log.info("Sense iniciando | modo=%s | código=%s", config.role, git_revision())
+    settings = " ".join(f"{field.name}={getattr(config, field.name)}" for field in fields(config))
+    log.info("Sense iniciando | código=%s", git_revision())
     log.info("Configuração: %s", settings)
     return config

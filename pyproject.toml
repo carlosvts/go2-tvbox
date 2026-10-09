@@ -11,12 +11,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Microfone. Só onde há captura: a TV Box, nos dois modos.
+# Microfone. Só na TV Box; os testes rodam sem ele.
 capture = [
     "pyaudio>=0.2.13",
 ]
-# Wake word + STT. Só onde o reconhecimento roda: a TV Box em modo edge, ou o
-# PC que roda o receptor do modo thin.
+# Wake word + STT. Separado para os testes sem modelos rodarem sem ele.
 recognition = [
     "openwakeword==0.6.0",
     "vosk>=0.3.45",

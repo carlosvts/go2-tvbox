@@ -70,7 +70,7 @@ def test_move_vai_com_os_valores_no_corpo(api):
     dispatcher, _ = make(api)
     assert dispatcher.dispatch(FRENTE) is True
     assert api.requests == [
-        ("/commands/move", {"vx": 1.0, "vy": 0.0, "vyaw": 0.0, "duration_s": 3.0})
+        ("/commands/move", {"vx": 0.3, "vy": 0.0, "vyaw": 0.0, "duration_s": 1.0})
     ]
 
 
@@ -80,6 +80,13 @@ def test_cooldown_nao_confunde_movimentos_diferentes(api):
     assert dispatcher.dispatch(TRAS) is True  # outro move, não é repetição
     assert dispatcher.dispatch(TRAS) is False
     assert counters["cooldown_discards"] == 1
+
+
+def test_parada_repetida_nao_passa_pelo_cooldown(api):
+    dispatcher, counters = make(api)
+    assert dispatcher.dispatch(STOP, cooldown=False) is True
+    assert dispatcher.dispatch(STOP, cooldown=False) is True
+    assert len(api.requests) == 2 and not counters["cooldown_discards"]
 
 
 def test_cooldown_descarta_o_mesmo_comando_repetido(api):

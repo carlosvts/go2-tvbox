@@ -15,7 +15,7 @@ import pytest
 from sense.commands import load_commands
 from sense.config import load_config
 
-CONFIG = load_config(env={"SENSE_MODE": "edge", "GO2_API_URL": "http://api:8000"})
+CONFIG = load_config(env={"GO2_API_URL": "http://api:8000"})
 
 pytest.importorskip("openwakeword")
 pytest.importorskip("vosk")
@@ -41,7 +41,7 @@ def run(tmp_path, phrase):
     recognizer = build_recognizer(CONFIG, load_commands(), counters)
     pcm = speech(tmp_path, "en-us", "hey jarvis", 1.0) + speech(tmp_path, "pt-br", phrase, 5.0)
     results = [recognizer.feed(pcm[i : i + 960]) for i in range(0, len(pcm) - 960, 960)]
-    return [r.name for r in results if r is not None], counters
+    return [r.command.name for r in results if r is not None], counters
 
 
 def test_hey_jarvis_desligar_motores_vira_damp(tmp_path):

@@ -1,8 +1,10 @@
 """Hashmap frase → comando, lido de `config/commands.json`.
 
-O arquivo tem duas partes: `phrases` (frase em PT-BR → comando) e `commands`
-(cópia das entradas de `GET /capabilities` da go2-api que o Sense usa).
-`scripts/validate_commands.py` confere a segunda parte contra a API.
+O arquivo tem três partes: `phrases` (frase em PT-BR → comando), `stop_words`
+(palavras de parada) e `commands` (cópia das entradas de `GET /capabilities` da
+go2-api que o Sense usa). As duas primeiras são geradas de `config/phrases.json`
+por `scripts/generate_commands.py`; `scripts/validate_commands.py` confere a
+terceira contra a API.
 
 Uma frase aponta para o nome do comando ou, se o comando recebe números (caso
 do `move`), para `{"command": nome, "args": {campo: valor}}` com valores fixos.
@@ -55,6 +57,11 @@ def normalize(text: str) -> str:
 class CommandMap:
     by_phrase: dict[str, Command]  # chave: frase normalizada
     grammar: tuple[str, ...]  # frases como escritas no arquivo, para o STT
+    stop_words: frozenset[str] = frozenset()  # normalizadas
+    stop: Command | None = None  # o comando de parada
+
+    def has_stop_word(self, text: str) -> bool:
+        return not self.stop_words.isdisjoint(normalize(text).split())
 
     def lookup(self, text: str) -> Command | None:
         return self.by_phrase.get(normalize(text))
@@ -100,6 +107,16 @@ def load_commands(path: Path = COMMANDS_FILE) -> CommandMap:
         else:
             by_phrase[key] = command
 
+    stop_words = frozenset(normalize(word) for word in data.get("stop_words", []))
+    stops = {by_phrase[word].name for word in stop_words if word in by_phrase}
+    if stop_words and (len(stops) != 1 or not stop_words <= set(by_phrase)):
+        problems.append("toda palavra de `stop_words` tem de ser uma frase do mesmo comando")
+
     if problems:
         raise CommandsError(f"{path} inválido:\n" + "\n".join(f"  - {p}" for p in problems))
-    return CommandMap(by_phrase=by_phrase, grammar=tuple(p.lower() for p in data["phrases"]))
+    return CommandMap(
+        by_phrase=by_phrase,
+        grammar=tuple(p.lower() for p in data["phrases"]),
+        stop_words=stop_words,
+        stop=by_phrase[min(stop_words)] if stop_words else None,
+    )

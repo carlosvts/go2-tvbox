@@ -1,14 +1,5 @@
-"""Entrada da TV Box: `python -m sense`. O modo vem de SENSE_MODE no `.env`."""
+"""Entrada da TV Box: `python -m sense`."""
 
-from sense import boot
+from sense import boot, edge
 
-config = boot.start()
-# Import tardio: cada modo só carrega as dependências que usa.
-if config.role == "edge":
-    from sense import edge
-
-    edge.run(config)
-else:
-    from sense import thin
-
-    thin.run(config)
+edge.run(boot.start())

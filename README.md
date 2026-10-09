@@ -243,9 +243,6 @@ Diagnóstico: cpu=23% ram_pico=310MB | chunks_sent=2000 commands_sent=3 no_match
 | `no_match` | reconhecimento | o STT ouviu algo que não é uma frase do mapa |
 | `low_confidence` | reconhecimento | frase certa, confiança abaixo do mínimo |
 | `listen_timeouts` | reconhecimento | wake word sem nenhuma frase reconhecida depois |
-| `listen_closed_by_vosk` | reconhecimento | escutas que o Vosk fechou sozinho (detectou o fim da fala) |
-| `listen_cut_by_timeout` | reconhecimento | escutas com fala cortadas pelo teto `COMMAND_TIMEOUT_S` |
-| `wake_ignored_rearm` | reconhecimento | wake words ditas durante o rearme e ignoradas |
 | `commands_sent` | POST | a API respondeu 202 |
 | `cooldown_discards` | POST | comando repetido dentro do cooldown |
 | `api_rejections` | POST | a API respondeu erro (422, 503...) |

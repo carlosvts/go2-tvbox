@@ -23,24 +23,17 @@ class FakeWake:
 class FakeStt:
     """Devolve `answer` no chunk de número `after`; antes disso, None."""
 
-    def __init__(self, answer=None, after=10, partials=None, final=Transcript("", 0.0)):
+    def __init__(self, answer=None, after=10):
         self.answer = answer
         self.after = after
-        self.partials = partials or {}  # número do chunk → parcial a partir dele
-        self.final = final
         self.fed = 0
-        self.last_partial = ""
 
     def accept(self, chunk):
         self.fed += 1
-        self.last_partial = self.partials.get(self.fed, self.last_partial)
         return self.answer if self.fed == self.after else None
 
-    def partial(self):
-        return self.partials.get(self.fed, self.last_partial)
-
     def finish(self):
-        return self.final
+        return Transcript("", 0.0)
 
     def reset(self):
         self.fed = 0
@@ -80,7 +73,7 @@ def test_wake_word_seguida_de_frase_devolve_o_comando():
     assert beeps == [1]
     (command,) = feed_until_result(recognizer, 3)
     assert command.name == "damp"
-    assert counters == {"wake_detections": 1, "commands_recognized": 1, "listen_closed_by_vosk": 1}
+    assert counters == {"wake_detections": 1, "commands_recognized": 1}
 
 
 def test_audio_logo_apos_a_wake_word_e_descartado():
@@ -128,41 +121,3 @@ def test_wake_word_e_ignorada_logo_apos_uma_escuta():
     recognizer.feed(CHUNK)
     assert counters["wake_detections"] == 2  # ignorada durante o rearme
     assert wake.resets == 2
-
-
-def test_telemetria_quando_o_vosk_fecha_a_frase(caplog):
-    caplog.set_level("INFO")
-    stt = FakeStt(Transcript("desligar motores", 0.95), after=20, partials={5: "desligar"})
-    recognizer, wake, counters, _ = make(stt)
-    say_wake_word(recognizer, wake)
-    feed_until_result(recognizer, 3)
-    assert "Escuta aberta" in caplog.text
-    assert "voz detectada aos 0.1s: 'desligar'" in caplog.text
-    assert "Escuta fechada pelo Vosk em 0.6s" in caplog.text
-    assert "Rearme terminou" in caplog.text
-    assert counters["listen_closed_by_vosk"] == 1
-
-
-def test_telemetria_quando_o_teto_corta_a_frase(caplog):
-    caplog.set_level("INFO")
-    stt = FakeStt(partials={5: "desligar"}, final=Transcript("desligar motores", 0.9))
-    recognizer, wake, counters, _ = make(stt)
-    say_wake_word(recognizer, wake)
-    (command,) = feed_until_result(recognizer, 5)
-    assert command.name == "damp"
-    assert "Escuta cortada pelo teto de 2.5s" in caplog.text
-    assert "parcial='desligar', final='desligar motores'" in caplog.text
-    assert counters["listen_cut_by_timeout"] == 1
-
-
-def test_wake_word_no_rearme_e_logada_uma_vez(caplog):
-    caplog.set_level("INFO")
-    recognizer, wake, counters, _ = make(FakeStt(Transcript("faz um mortal", 0.99)))
-    say_wake_word(recognizer, wake)
-    feed_until_result(recognizer, 1.25)
-    wake.next_score = 0.99
-    recognizer.feed(CHUNK)
-    recognizer.feed(CHUNK)
-    assert counters["wake_ignored_rearm"] == 1
-    assert caplog.text.count("Wake word ignorada") == 1
-

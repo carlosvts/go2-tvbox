@@ -1,15 +1,11 @@
 """Modo edge: a TV Box captura, reconhece e faz o POST na go2-api."""
 
-import logging
-
 from sense.audio import Microphone, play_beep
 from sense.commands import load_commands
 from sense.config import Config
 from sense.dispatcher import Dispatcher
 from sense.recognizer import build_recognizer
 from sense.stats import Stats
-
-log = logging.getLogger(__name__)
 
 # Áudio acumulado no microfone acima disto é jogado fora em vez de processado
 # atrasado. Acontece depois de um POST lento ou se a CPU não acompanhar.
@@ -30,12 +26,5 @@ def run(config: Config) -> None:
         command = recognizer.feed(mic.read())
         if command is not None:
             dispatcher.dispatch(command)
-        dropped = mic.drop_backlog(MAX_BACKLOG_S)
-        if dropped:
-            log.info(
-                "Atraso: %d chunks (%.2fs de áudio) jogados fora; o processamento "
-                "não acompanhou o microfone.",
-                dropped, dropped * config.chunk_ms / 1000,
-            )
-        stats.counters["chunks_dropped_late"] += dropped
+        stats.counters["chunks_dropped_late"] += mic.drop_backlog(MAX_BACKLOG_S)
         stats.maybe_log()

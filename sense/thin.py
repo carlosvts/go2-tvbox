@@ -271,8 +271,11 @@ def run(config: Config) -> None:
 
     stats = Stats()
     # O modelo carrega antes de o microfone abrir, para ele não acumular áudio.
-    wake = OpenWakeWordEngine(config.wake_word)
-    log.info("Wake word pronta: %s (limiar %.2f).", config.wake_word, config.wake_threshold)
+    wake = OpenWakeWordEngine(config.wake_word, config.wake_vad_threshold)
+    vad = f"VAD {config.wake_vad_threshold:.2f}" if config.wake_vad_threshold else "sem VAD"
+    log.info(
+        "Wake word pronta: %s (limiar %.2f, %s).", config.wake_word, config.wake_threshold, vad
+    )
     client = FallbackClient(
         config.server_url,
         config.edge_id,

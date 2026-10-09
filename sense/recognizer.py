@@ -332,7 +332,7 @@ def build_recognizer(
     on_wake: Callable[[], None] = lambda: None,
 ) -> Recognizer:
     """Monta o reconhecedor com os motores reais (openWakeWord + Vosk)."""
-    wake = OpenWakeWordEngine(config.wake_word)
+    wake = OpenWakeWordEngine(config.wake_word, config.wake_vad_threshold)
     stt = VoskEngine(config.vosk_model_path, commands.grammar)
     log.info(
         "Reconhecedor pronto: wake word %s (limiar %.2f), Vosk %s, %d frases na gramática.",

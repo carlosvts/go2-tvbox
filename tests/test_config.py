@@ -11,6 +11,7 @@ def test_so_a_url_da_api_e_obrigatoria():
     assert config.chunk_ms == 30
     assert config.server_url is None  # fallback desligado
     assert config.stop_failsafe is True
+    assert config.wake_vad_threshold == 0.0  # VAD da wake word desligado
     assert config.require_obstacle_avoidance is True
     assert (config.stt_min_confidence, config.max_local_utterance_s) == (0.7, 3.0)
     assert (config.fallback_timeout_s, config.cancel_timeout_s) == (5.0, 0.5)
@@ -24,12 +25,14 @@ def test_fallback_configurado():
             "SERVER_URL": "http://192.168.0.10:9000/",
             "EDGE_ID": "tvbox-sala",
             "STOP_FAILSAFE": "0",
+            "WAKE_VAD_THRESHOLD": "0.5",
             "FALLBACK_OK_STATUSES": "OK, feito",
         }
     )
     assert config.server_url == "http://192.168.0.10:9000"
     assert config.edge_id == "tvbox-sala"
     assert config.stop_failsafe is False
+    assert config.wake_vad_threshold == 0.5
     assert config.fallback_ok_statuses == {"ok", "feito"}
 
 

@@ -260,6 +260,7 @@ Sem `SERVER_URL`, o que cairia no fallback é descartado com uma linha de log, e
 | Tamanho do chunk de áudio | `AUDIO_CHUNK_MS` | 30 |
 | Qual wake word (modelo do openWakeWord) | `WAKE_WORD` | `hey_jarvis` |
 | Sensibilidade da wake word | `WAKE_THRESHOLD` | 0.85 |
+| VAD do Silero na wake word: nota mínima de voz (0 = desligado; 0.5 para ligar) | `WAKE_VAD_THRESHOLD` | 0 |
 | Thin: intervalo mínimo entre wake words | `WAKE_COOLDOWN_S` | 2.0 |
 | Thin: beep na wake word, e quanto do começo da escuta ele ocupa | `WAKE_SOUND`, `BEEP_IGNORE_S` | 1, 0.6 |
 | Thin: áudio de antes da detecção que entra no envio | `PRE_ROLL_S` | 0.3 |
@@ -335,7 +336,7 @@ API fora do ar ou erro no POST: o comando é descartado, com uma linha de log di
 │   ├── edge.py                # modo edge: o laço e a execução de cada decisão
 │   ├── thin.py                # modo thin: wake word, gravação do comando e envio
 │   ├── stop.py                # parada manual: python -m sense.stop
-│   ├── wake.py                # wake word (openWakeWord)
+│   ├── wake.py                # wake word (openWakeWord) e o VAD opcional dela
 │   ├── vad.py                 # fim de fala por volume (thin)
 │   ├── audio.py               # microfone e sons
 │   ├── ring_buffer.py         # últimos segundos de áudio, para o recorte do fallback

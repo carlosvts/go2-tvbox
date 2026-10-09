@@ -40,6 +40,7 @@ class Config:
     vosk_model_path: Path
     wake_word: str  # nome do modelo do openWakeWord
     wake_threshold: float
+    wake_vad_threshold: float  # 0 = VAD do Silero desligado
     stt_min_confidence: float
     command_timeout_s: float
     cooldown_s: float
@@ -132,6 +133,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         vosk_model_path=model_path,
         wake_word=get("WAKE_WORD") or "hey_jarvis",
         wake_threshold=number("WAKE_THRESHOLD", 0.85, 0, 1),
+        wake_vad_threshold=number("WAKE_VAD_THRESHOLD", 0.0, 0, 1),
         stt_min_confidence=number("STT_MIN_CONFIDENCE", 0.7, 0, 1),
         command_timeout_s=number("COMMAND_TIMEOUT_S", 2.5, 1, 15),
         cooldown_s=number("COOLDOWN_S", 2.0, 0, 60),

@@ -4,3 +4,5 @@ venv/
 .env
 .last_known_pc_ip
 .venv/
+__pycache__/
+.pytest_cache/

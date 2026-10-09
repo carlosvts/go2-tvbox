@@ -39,9 +39,24 @@ def test_frase_fora_do_mapa_devolve_none():
     assert load_commands().lookup("faz um mortal") is None
 
 
-def test_nenhum_comando_com_parametros_numericos():
-    names = {command.name for command in load_commands().by_phrase.values()}
-    assert not names & {"move", "speed"}
+def test_frases_de_movimento_levam_os_valores_no_corpo():
+    commands = load_commands()
+    frente = commands.lookup("andar para frente")
+    assert (frente.method, frente.endpoint) == ("POST", "/commands/move")
+    assert frente.body == {"vx": 1.0, "vy": 0.0, "vyaw": 0.0, "duration_s": 3.0}
+    assert commands.lookup("andar para trás").body["vx"] == -0.5
+    assert commands.lookup("virar para a direita").body["vyaw"] == -0.5
+    assert commands.lookup("virar para a esquerda").body["vyaw"] == 0.5
+    assert commands.lookup("andar para a direita").body["vy"] == -0.5
+    assert commands.lookup("andar para a esquerda").body["vy"] == 0.5
+    # Com e sem o artigo é a mesma coisa.
+    assert commands.lookup("virar para direita") == commands.lookup("virar para a direita")
+
+
+def test_cumprimentar_e_cumprimente_sao_hello():
+    commands = load_commands()
+    assert commands.lookup("cumprimentar").name == "hello"
+    assert commands.lookup("cumprimente") is commands.lookup("cumprimentar")
 
 
 @pytest.mark.parametrize(
@@ -50,8 +65,15 @@ def test_nenhum_comando_com_parametros_numericos():
         ({"phrases": {"senta": "sitt"}, "commands": {"sit": CMD}}, "comando inexistente 'sitt'"),
         ({"phrases": {"senta": "sit", "Senta!": "sit"}, "commands": {"sit": CMD}}, "repetida"),
         (
-            {"phrases": {}, "commands": {"move": {**CMD, "params": ["vx", "vy"]}}},
-            "params .* não suportados",
+            {"phrases": {"anda": "move"}, "commands": {"move": {**CMD, "params": ["vx", "vy"]}}},
+            "exige args",
+        ),
+        (
+            {
+                "phrases": {"anda": {"command": "move", "args": {"vx": 1.0}}},
+                "commands": {"move": {**CMD, "params": ["vx", "vy"]}},
+            },
+            "args devem ser números",
         ),
     ],
 )

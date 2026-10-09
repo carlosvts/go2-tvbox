@@ -11,6 +11,8 @@ from sense.dispatcher import Dispatcher
 COMMANDS = load_commands()
 DAMP = COMMANDS.lookup("desligar motores")
 STOP = COMMANDS.lookup("para")
+FRENTE = COMMANDS.lookup("andar para frente")
+TRAS = COMMANDS.lookup("andar para trás")
 
 
 class FakeApi(BaseHTTPRequestHandler):
@@ -62,6 +64,22 @@ def test_stop_vai_sem_corpo(api):
     dispatcher, _ = make(api)
     assert dispatcher.dispatch(STOP) is True
     assert api.requests == [("/commands/stop", None)]
+
+
+def test_move_vai_com_os_valores_no_corpo(api):
+    dispatcher, _ = make(api)
+    assert dispatcher.dispatch(FRENTE) is True
+    assert api.requests == [
+        ("/commands/move", {"vx": 1.0, "vy": 0.0, "vyaw": 0.0, "duration_s": 3.0})
+    ]
+
+
+def test_cooldown_nao_confunde_movimentos_diferentes(api):
+    dispatcher, counters = make(api)
+    assert dispatcher.dispatch(FRENTE) is True
+    assert dispatcher.dispatch(TRAS) is True  # outro move, não é repetição
+    assert dispatcher.dispatch(TRAS) is False
+    assert counters["cooldown_discards"] == 1
 
 
 def test_cooldown_descarta_o_mesmo_comando_repetido(api):

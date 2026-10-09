@@ -36,7 +36,8 @@ def find_problems(data: dict, capabilities: list[dict]) -> list[str]:
                     f"comando {name!r}: {field} é {entry[field]!r} no arquivo "
                     f"e {capability[field]!r} na API"
                 )
-    for phrase, name in data["phrases"].items():
+    for phrase, target in data["phrases"].items():
+        name = target["command"] if isinstance(target, dict) else target
         if name not in data["commands"]:
             problems.append(f"frase {phrase!r} aponta para comando inexistente {name!r} (órfã)")
     return problems

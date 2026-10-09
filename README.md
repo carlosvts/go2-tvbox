@@ -167,12 +167,20 @@ Diga "hey jarvis", espere o beep e diga a frase.
 | "senta" | `sit` | senta |
 | "deita" | `stand_down` | deita de forma controlada |
 | "para" | `stop` | para de andar, continua de pé |
-| "oi" | `hello` | acena |
+| "cumprimentar" ou "cumprimente" | `hello` | acena |
 | "alonga" | `stretch` | alonga |
 | "coração" | `finger_heart` | gesto de coração |
 | "desligar motores" | `damp` | **tira a força dos motores: de pé, o robô cai** |
+| "andar para frente" | `move` | anda para frente a 1,0 m/s por 3 s |
+| "andar para trás" | `move` | anda para trás a 0,5 m/s por 1 s |
+| "virar para a direita" | `move` | gira para a direita a 0,5 rad/s por 1 s |
+| "virar para a esquerda" | `move` | gira para a esquerda a 0,5 rad/s por 1 s |
+| "andar para a direita" | `move` | anda de lado para a direita a 0,5 m/s por 1 s |
+| "andar para a esquerda" | `move` | anda de lado para a esquerda a 0,5 m/s por 1 s |
 
-O mapa fica em `config/commands.json`: `phrases` (frase → comando) e `commands` (cópia das entradas de `GET /capabilities` usadas). Depois de editar, valide contra a API:
+As frases com direita e esquerda valem com ou sem o "a" ("virar para direita").
+
+O mapa fica em `config/commands.json`: `phrases` (frase → comando) e `commands` (cópia das entradas de `GET /capabilities` usadas). No `move`, a frase aponta para `{"command": "move", "args": {...}}` com `vx`, `vy`, `vyaw` e `duration_s` fixos; no referencial do robô, `vy` e `vyaw` positivos são para a esquerda. Depois de editar, valide contra a API:
 
 ```bash
 uv run python scripts/validate_commands.py http://192.168.0.10:8000

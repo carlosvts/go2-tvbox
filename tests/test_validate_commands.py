@@ -20,6 +20,15 @@ def test_campo_divergente_e_apontado():
     assert "endpoint" in problem and "/commands/gesture" in problem
 
 
+def test_frase_com_args_e_conferida_pelo_nome_do_comando():
+    data = {
+        "phrases": {"anda": {"command": "damp", "args": {}}, "voa": {"command": "fly", "args": {}}},
+        "commands": {"damp": DAMP},
+    }
+    (problem,) = find_problems(data, API)
+    assert "'voa'" in problem and "órfã" in problem
+
+
 def test_frase_sem_comando_e_orfa():
     data = {"phrases": {"senta": "sit"}, "commands": {"damp": DAMP}}
     (problem,) = find_problems(data, API)

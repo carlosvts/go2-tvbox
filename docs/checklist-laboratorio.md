@@ -32,7 +32,7 @@ journalctl --namespace=go2-sense --since "<hora de início da rodada>"
 - [ ] O log mostra `Microfone aberto: ...` com `card ALSA:` diferente de `None`.
 - [ ] O log mostra `Reconhecedor pronto: ...`.
 - [ ] "hey jarvis": toca o beep e o log mostra `Wake word detectada`.
-- [ ] "hey jarvis" + cada uma das 8 frases, 3 vezes cada. Para cada frase, anote quantas viraram `Enviado: ...`.
+- [ ] "hey jarvis" + cada uma das frases do `commands.json`, 3 vezes cada. Para cada frase, anote quantas viraram `Enviado: ...`.
 - [ ] O robô executou o que a frase pede.
 - [ ] Frase fora do mapa ("hey jarvis, que horas são"): log `Sem comando: ...`, nenhum POST.
 - [ ] Mesma frase duas vezes em menos de 2 s: a segunda aparece como `Descartado: ... (cooldown ...)`.
@@ -64,7 +64,7 @@ A latência **da fala** até o POST é a latência wake word → POST menos o te
 
 ## 3. Rodada thin
 
-- [ ] Repita os itens de voz da rodada edge (wake word, 8 frases × 3, frase fora do mapa, cooldown). O beep toca na TV Box; `Wake word detectada` e `Enviado:` aparecem no log **do PC**.
+- [ ] Repita os itens de voz da rodada edge (wake word, frases × 3, frase fora do mapa, cooldown). O beep toca na TV Box; `Wake word detectada` e `Enviado:` aparecem no log **do PC**.
 - [ ] Deixe rodando **10+ minutos**, do mesmo jeito.
 - [ ] Desligue o receptor por 20 s e religue: a TV Box loga `Conexão com o receptor perdida`, depois `Conectado ao receptor`, e `tcp_reconnects` sobe.
 
@@ -96,7 +96,7 @@ Tudo abaixo foi escrito sem poder ser executado; se algo falhar no laboratório,
 1. **Instalação em aarch64 / Debian 11.** O lock foi resolvido e instalado só em x86_64. Em especial: compilação do PyAudio, wheels de `onnxruntime` e `tflite-runtime`, e o espaço em disco consumido (313 MB medidos no PC).
 2. **`sense/audio.py` inteiro.** A classe `Microphone` nunca abriu um dispositivo real: a busca pelo nome, a abertura a 48 kHz mono, o `drop_backlog` e o número do card ALSA tirado do nome (`hw:N,0`). Se o nome vier em outro formato, o beep fica mudo e o log mostra `card ALSA: None`.
 3. **Beep.** `aplay` no card do Anker, e se o eco dele atrapalha o reconhecimento (os 0,9 s de descarte vêm do servidor antigo).
-4. **Acurácia com voz real.** Wake word e frases só foram testadas com voz sintética do `espeak-ng`. Com ela, só "oi", "alonga" e "desligar motores" saíram certas; "deita" saiu com confiança abaixo do limiar e "levanta", "senta", "para" e "coração" não foram reconhecidas. Os limiares `WAKE_THRESHOLD` e `STT_MIN_CONFIDENCE` são pontos de partida, não valores calibrados.
+4. **Acurácia com voz real.** Wake word e frases só foram testadas com voz sintética do `espeak-ng`. Com ela, entre as frases curtas só "alonga" e "desligar motores" saíram certas; "deita" saiu com confiança abaixo do limiar e "levanta", "senta", "para" e "coração" não foram reconhecidas. Os limiares `WAKE_THRESHOLD` e `STT_MIN_CONFIDENCE` são pontos de partida, não valores calibrados.
 5. **CPU e RAM na TV Box.** Não sei se openWakeWord + Vosk rodam em tempo real nos 4 núcleos ARM com 1,8 GB. Se não rodarem, `chunks_dropped_late` cresce no modo edge.
 6. **Decimação 48 kHz → 16 kHz sem filtro.** Mantida igual à do cliente antigo; pode custar acurácia.
 7. **Rede real.** O transporte foi testado em loopback. Wi-Fi com perda, o tamanho efetivo dos buffers de 8 KB e os contadores de atraso em rede de verdade não foram exercitados.

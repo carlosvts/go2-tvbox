@@ -32,13 +32,13 @@ class Dispatcher:
         self._cooldown_s = cooldown_s
         self._counters = counters
         self._clock = clock
-        self._last_name: str | None = None
+        self._last: Command | None = None
         self._last_time = 0.0
 
     def dispatch(self, command: Command) -> bool:
         """Envia o comando. Devolve True só se a API respondeu 202."""
         now = self._clock()
-        if command.name == self._last_name and now - self._last_time < self._cooldown_s:
+        if command == self._last and now - self._last_time < self._cooldown_s:
             log.info(
                 "Descartado: %s repetido em %.1fs (cooldown de %.1fs).",
                 command.name, now - self._last_time, self._cooldown_s,
@@ -79,7 +79,7 @@ class Dispatcher:
 
         # O cooldown só conta a partir de um envio aceito: se a API estava fora,
         # repetir a frase é uma nova tentativa, não uma duplicata.
-        self._last_name = command.name
+        self._last = command
         self._last_time = now
         log.info(
             "Enviado: %s → %s %s (202, %.0f ms).",

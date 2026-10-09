@@ -25,13 +25,13 @@ def test_desligar_motores_e_damp():
 
 
 def test_stop_nao_tem_corpo():
-    stop = load_commands().lookup("para agora")
+    stop = load_commands().lookup("para")
     assert (stop.endpoint, stop.body) == ("/commands/stop", None)
 
 
 def test_lookup_ignora_acento_caixa_e_pontuacao():
     commands = load_commands()
-    assert commands.lookup("Fica de PE!") is commands.lookup("fica de pé")
+    assert commands.lookup("CORACAO!") is commands.lookup("coração")
     assert normalize("  Faz   coração. ") == "faz coracao"
 
 

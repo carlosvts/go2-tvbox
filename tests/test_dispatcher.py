@@ -10,7 +10,7 @@ from sense.dispatcher import Dispatcher
 
 COMMANDS = load_commands()
 DAMP = COMMANDS.lookup("desligar motores")
-STOP = COMMANDS.lookup("para agora")
+STOP = COMMANDS.lookup("para")
 
 
 class FakeApi(BaseHTTPRequestHandler):

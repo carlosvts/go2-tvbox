@@ -1,12 +1,12 @@
 {
   "phrases": {
-    "fica de pé": "stand_up",
-    "pode sentar": "sit",
-    "deita no chão": "stand_down",
-    "para agora": "stop",
-    "dá um oi": "hello",
-    "faz alongamento": "stretch",
-    "faz coração": "finger_heart",
+    "levanta": "stand_up",
+    "senta": "sit",
+    "deita": "stand_down",
+    "para": "stop",
+    "oi": "hello",
+    "alonga": "stretch",
+    "coração": "finger_heart",
     "desligar motores": "damp"
   },
   "commands": {

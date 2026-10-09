@@ -163,13 +163,13 @@ Diga "hey jarvis", espere o beep e diga a frase.
 
 | Frase | Comando | O que faz |
 |---|---|---|
-| "fica de pé" | `stand_up` | levanta |
-| "pode sentar" | `sit` | senta |
-| "deita no chão" | `stand_down` | deita de forma controlada |
-| "para agora" | `stop` | para de andar, continua de pé |
-| "dá um oi" | `hello` | acena |
-| "faz alongamento" | `stretch` | alonga |
-| "faz coração" | `finger_heart` | gesto de coração |
+| "levanta" | `stand_up` | levanta |
+| "senta" | `sit` | senta |
+| "deita" | `stand_down` | deita de forma controlada |
+| "para" | `stop` | para de andar, continua de pé |
+| "oi" | `hello` | acena |
+| "alonga" | `stretch` | alonga |
+| "coração" | `finger_heart` | gesto de coração |
 | "desligar motores" | `damp` | **tira a força dos motores: de pé, o robô cai** |
 
 O mapa fica em `config/commands.json`: `phrases` (frase → comando) e `commands` (cópia das entradas de `GET /capabilities` usadas). Depois de editar, valide contra a API:
@@ -193,7 +193,7 @@ O script falha (código 1) se algum comando do arquivo não existir na API ou di
 | Tamanho do chunk de áudio | `AUDIO_CHUNK_MS` | 30 |
 | Sensibilidade da wake word | `WAKE_THRESHOLD` | 0.85 |
 | Confiança mínima do STT | `STT_MIN_CONFIDENCE` | 0.7 |
-| Tempo máximo de escuta após a wake word | `COMMAND_TIMEOUT_S` | 4.0 |
+| Tempo máximo de escuta após a wake word | `COMMAND_TIMEOUT_S` | 2.5 |
 | Cooldown de comando repetido | `COOLDOWN_S` | 2.0 |
 | Pasta do modelo Vosk | `VOSK_MODEL_PATH` | `models/vosk-model-small-pt-0.3` |
 
@@ -204,7 +204,7 @@ O script falha (código 1) se algum comando do arquivo não existir na API ou di
 | Parâmetro | Constante | Arquivo | Valor |
 |---|---|---|---|
 | Áudio descartado logo após a wake word (eco e beep) | `POST_WAKE_DISCARD_S` | `sense/recognizer.py` | 0.9 s |
-| Tempo em que a wake word fica ignorada após uma escuta | `REARM_S` | `sense/recognizer.py` | 1.5 s |
+| Tempo em que a wake word fica ignorada após uma escuta | `REARM_S` | `sense/recognizer.py` | 0.5 s |
 | Qual wake word | `WAKE_WORD` | `sense/recognizer.py` | `hey_jarvis` |
 | Timeout do POST na API | `POST_TIMEOUT_S` | `sense/dispatcher.py` | 2.0 s |
 | Acúmulo de áudio tolerado no modo edge | `MAX_BACKLOG_S` | `sense/edge.py` | 0.2 s |

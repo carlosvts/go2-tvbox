@@ -108,7 +108,7 @@ def load_config(role: str | None = None, env: Mapping[str, str] | None = None) -
         vosk_model_path=model_path,
         wake_threshold=number("WAKE_THRESHOLD", 0.85, 0, 1),
         stt_min_confidence=number("STT_MIN_CONFIDENCE", 0.7, 0, 1),
-        command_timeout_s=number("COMMAND_TIMEOUT_S", 4.0, 1, 15),
+        command_timeout_s=number("COMMAND_TIMEOUT_S", 2.5, 1, 15),
         cooldown_s=number("COOLDOWN_S", 2.0, 0, 60),
     )
     if problems:

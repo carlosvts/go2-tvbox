@@ -30,7 +30,7 @@ WAKE_WORD = "hey_jarvis"
 POST_WAKE_DISCARD_S = 0.9
 # Depois de uma escuta, a wake word fica ignorada por este tempo, para o áudio
 # antigo sair dos buffers internos do openWakeWord.
-REARM_S = 1.5
+REARM_S = 0.5
 
 
 @dataclass(frozen=True)

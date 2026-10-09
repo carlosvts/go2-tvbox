@@ -86,11 +86,11 @@ def test_audio_logo_apos_a_wake_word_e_descartado():
 
 def test_frase_fora_do_mapa_e_evento_no_match(caplog):
     caplog.set_level("INFO")
-    recognizer, wake, counters, _ = make(FakeStt(Transcript("oi", 0.99)))
+    recognizer, wake, counters, _ = make(FakeStt(Transcript("faz um mortal", 0.99)))
     say_wake_word(recognizer, wake)
     assert feed_until_result(recognizer, 3) == []
     assert counters["no_match"] == 1
-    assert "'oi' não casa com nenhuma frase" in caplog.text
+    assert "'faz um mortal' não casa com nenhuma frase" in caplog.text
 
 
 def test_confianca_baixa_e_evento_low_confidence(caplog):
@@ -110,14 +110,14 @@ def test_silencio_ate_o_timeout_e_evento_listen_timeout():
 
 
 def test_wake_word_e_ignorada_logo_apos_uma_escuta():
-    recognizer, wake, counters, _ = make(FakeStt(Transcript("oi", 0.99)))
+    recognizer, wake, counters, _ = make(FakeStt(Transcript("faz um mortal", 0.99)))
     say_wake_word(recognizer, wake)
     feed_until_result(recognizer, 3)  # volta ao passivo após ~1,2 s; rearme já passou
     wake.next_score = 0.99
     recognizer.feed(CHUNK)
     assert counters["wake_detections"] == 2
 
-    feed_until_result(recognizer, 1.25)  # termina a escuta; rearme de 1,5 s começa
+    feed_until_result(recognizer, 1.25)  # termina a escuta; rearme de 0,5 s começa
     recognizer.feed(CHUNK)
     assert counters["wake_detections"] == 2  # ignorada durante o rearme
     assert wake.resets == 2

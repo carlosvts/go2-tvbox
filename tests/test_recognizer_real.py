@@ -54,4 +54,7 @@ def test_frase_fora_da_gramatica_nao_vira_comando(tmp_path):
     names, counters = run(tmp_path, "que horas são agora")
     assert names == []
     assert counters["wake_detections"] == 1
-    assert counters["no_match"] + counters["listen_timeouts"] == 1
+    # Com frases de uma palavra só, o Vosk às vezes encaixa a fala na palavra
+    # mais parecida; aí quem barra é a confiança mínima.
+    rejected = counters["no_match"] + counters["listen_timeouts"] + counters["low_confidence"]
+    assert rejected == 1

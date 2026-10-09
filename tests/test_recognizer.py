@@ -1,15 +1,11 @@
 from collections import Counter
 
-import pytest
-
-from sense.commands import load_commands, load_intents
+from sense.commands import load_commands
 from sense.config import load_config
 from sense.recognizer import Recognizer, Transcript
 
 CHUNK = bytes(960)  # 30 ms de silêncio a 16 kHz
-ENV = {"SENSE_MODE": "edge", "GO2_API_URL": "http://api:8000"}
-CONFIG = load_config(env={**ENV, "STT_MODE": "gramatica"})
-FREE = load_config(env={**ENV, "STT_MODE": "livre"})
+CONFIG = load_config(env={"SENSE_MODE": "edge", "GO2_API_URL": "http://api:8000"})
 
 
 class FakeWake:
@@ -101,7 +97,7 @@ def test_frase_fora_do_mapa_e_evento_no_match(caplog):
     say_wake_word(recognizer, wake)
     assert feed_until_result(recognizer, 3) == []
     assert counters["no_match"] == 1
-    assert "'faz um mortal' (não casa com nenhuma frase" in caplog.text
+    assert "'faz um mortal' não casa com nenhuma frase" in caplog.text
 
 
 def test_confianca_baixa_e_evento_low_confidence(caplog):
@@ -170,43 +166,3 @@ def test_wake_word_no_rearme_e_logada_uma_vez(caplog):
     assert counters["wake_ignored_rearm"] == 1
     assert caplog.text.count("Wake word ignorada") == 1
 
-
-def make_free(stt):
-    """Reconhecedor no modo livre: o interpretador de verdade, STT falso."""
-    interpreter = pytest.importorskip("sense.interpreter")
-    wake, counters = FakeWake(), Counter()
-    recognizer = Recognizer(
-        wake, stt, load_commands(), FREE, counters,
-        interpreter=interpreter.Interpreter.load(), intents=load_intents(),
-    )
-    return recognizer, wake, counters
-
-
-def test_modo_livre_aceita_variacao_da_frase(caplog):
-    caplog.set_level("INFO")
-    recognizer, wake, counters = make_free(FakeStt(Transcript("por favor anda pra frente", 0.9)))
-    say_wake_word(recognizer, wake)
-    (command,) = feed_until_result(recognizer, 3)
-    assert command.body == {"vx": 1.0, "vy": 0.0, "vyaw": 0.0, "duration_s": 3.0}
-    assert "interpretador: andar_frente, nota 100" in caplog.text
-
-
-def test_modo_livre_frase_sem_comando_e_no_match(caplog):
-    caplog.set_level("INFO")
-    recognizer, wake, counters = make_free(FakeStt(Transcript("não anda para frente", 0.9)))
-    say_wake_word(recognizer, wake)
-    assert feed_until_result(recognizer, 3) == []
-    assert counters["no_match"] == 1
-    assert "interpretador: negação" in caplog.text
-
-
-def test_modo_livre_parada_passa_mesmo_com_confianca_baixa():
-    recognizer, wake, _ = make_free(FakeStt(Transcript("para", 0.3)))
-    say_wake_word(recognizer, wake)
-    (command,) = feed_until_result(recognizer, 3)
-    assert command.name == "stop"
-
-    recognizer, wake, counters = make_free(FakeStt(Transcript("senta", 0.3)))
-    say_wake_word(recognizer, wake)
-    assert feed_until_result(recognizer, 3) == []
-    assert counters["low_confidence"] == 1

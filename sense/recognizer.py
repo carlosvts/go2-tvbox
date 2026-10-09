@@ -18,13 +18,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from sense.commands import Command, CommandMap
 from sense.config import SAMPLE_RATE, Config
-
-if TYPE_CHECKING:
-    from sense.interpreter import Interpreter
 
 log = logging.getLogger(__name__)
 
@@ -77,8 +74,7 @@ class OpenWakeWordEngine:
 
 
 class VoskEngine:
-    def __init__(self, model_path: Path, grammar: tuple[str, ...] | None) -> None:
-        """`grammar=None` é o modo livre: o vocabulário inteiro do modelo."""
+    def __init__(self, model_path: Path, grammar: tuple[str, ...]) -> None:
         from vosk import KaldiRecognizer, Model, SetLogLevel
 
         if not model_path.is_dir():
@@ -87,14 +83,10 @@ class VoskEngine:
                 "Rode scripts/download_models.py ou ajuste VOSK_MODEL_PATH."
             )
         SetLogLevel(-1)
-        model = Model(str(model_path))
-        if grammar is None:
-            self._recognizer = KaldiRecognizer(model, SAMPLE_RATE)
-        else:
-            # Gramática fechada: o Vosk só pode devolver palavras destas frases.
-            # "[unk]" é para onde vai o que não se parece com nenhuma delas.
-            closed_grammar = json.dumps([*grammar, "[unk]"], ensure_ascii=False)
-            self._recognizer = KaldiRecognizer(model, SAMPLE_RATE, closed_grammar)
+        # Gramática fechada: o Vosk só pode devolver palavras destas frases.
+        # "[unk]" é para onde vai o que não se parece com nenhuma delas.
+        closed_grammar = json.dumps([*grammar, "[unk]"], ensure_ascii=False)
+        self._recognizer = KaldiRecognizer(Model(str(model_path)), SAMPLE_RATE, closed_grammar)
         self._recognizer.SetWords(True)
 
     def accept(self, chunk: bytes) -> Transcript | None:
@@ -136,13 +128,7 @@ class Recognizer:
         config: Config,
         counters: Counter,
         on_wake: Callable[[], None] = lambda: None,
-        interpreter: "Interpreter | None" = None,
-        intents: dict[str, Command] | None = None,
     ) -> None:
-        """Com `interpreter`, a frase passa por ele e o ID vira comando por
-        `intents`; sem ele, vale a frase exata de `commands`."""
-        self._interpreter = interpreter
-        self._intents = intents or {}
         self._wake = wake
         self._stt = stt
         self._commands = commands
@@ -252,31 +238,16 @@ class Recognizer:
             self._counters["listen_timeouts"] += 1
             return None
 
-        is_stop = False
-        if self._interpreter is None:
-            command = self._commands.lookup(transcript.text)
-            reason = "não casa com nenhuma frase"
-        else:
-            result = self._interpreter.interpret(transcript.text)
-            command = self._intents.get(result.id) if result.id else None
-            is_stop = result.is_stop
-            reason = f"interpretador: {result.reason}"
-            if result.id:
-                reason = f"interpretador: {result.id}, nota {result.score:.0f}"
-                if command is None:
-                    reason += ", sem comando em interpreter.json"
+        command = self._commands.lookup(transcript.text)
         if command is None:
             log.info(
-                "Sem comando: %r (%s; conf=%.2f).", transcript.text, reason, transcript.confidence
+                "Sem comando: %r não casa com nenhuma frase (conf=%.2f).",
+                transcript.text, transcript.confidence,
             )
             self._counters["no_match"] += 1
             return None
-        if self._interpreter is not None:
-            log.info("Interpretado: %r (%s).", transcript.text, reason)
 
-        # A parada do interpretador é o comando de segurança: não espera
-        # confiança alta do STT.
-        if transcript.confidence < self._config.stt_min_confidence and not is_stop:
+        if transcript.confidence < self._config.stt_min_confidence:
             log.info(
                 "Sem comando: %r casaria com %s, mas a confiança %.2f está abaixo de %.2f.",
                 transcript.text, command.name, transcript.confidence,
@@ -301,19 +272,9 @@ def build_recognizer(
 ) -> Recognizer:
     """Monta o reconhecedor com os motores reais (openWakeWord + Vosk)."""
     wake = OpenWakeWordEngine()
-    if config.stt_mode == "gramatica":
-        stt = VoskEngine(config.vosk_model_path, commands.grammar)
-        interpreter, intents = None, None
-        mode = f"{len(commands.grammar)} frases na gramática"
-    else:
-        from sense.commands import load_intents
-        from sense.interpreter import Interpreter
-
-        stt = VoskEngine(config.vosk_model_path, None)
-        interpreter, intents = Interpreter.load(), load_intents()
-        mode = f"transcrição livre, {len(intents)} comandos no interpretador"
+    stt = VoskEngine(config.vosk_model_path, commands.grammar)
     log.info(
-        "Reconhecedor pronto: wake word %s (limiar %.2f), Vosk %s, %s.",
-        WAKE_WORD, config.wake_threshold, config.vosk_model_path.name, mode,
+        "Reconhecedor pronto: wake word %s (limiar %.2f), Vosk %s, %d frases na gramática.",
+        WAKE_WORD, config.wake_threshold, config.vosk_model_path.name, len(commands.grammar),
     )
-    return Recognizer(wake, stt, commands, config, counters, on_wake, interpreter, intents)
+    return Recognizer(wake, stt, commands, config, counters, on_wake)

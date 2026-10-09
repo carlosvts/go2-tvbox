@@ -16,7 +16,6 @@ from pathlib import Path
 from sense.config import REPO_ROOT
 
 COMMANDS_FILE = REPO_ROOT / "config" / "commands.json"
-INTERPRETER_FILE = REPO_ROOT / "config" / "interpreter.json"
 
 # Corpos que o Sense monta sozinho: nenhum, ou só `{"cmd": <nome>}`. Qualquer
 # outro comando precisa dos valores em `args`, na frase.
@@ -61,89 +60,46 @@ class CommandMap:
         return self.by_phrase.get(normalize(text))
 
 
-def _api_commands(data: dict) -> dict[str, Command]:
-    return {
-        name: Command(
+def load_commands(path: Path = COMMANDS_FILE) -> CommandMap:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    problems: list[str] = []
+
+    commands: dict[str, Command] = {}
+    for name, entry in data["commands"].items():
+        commands[name] = Command(
             name=name,
             method=entry["method"],
             endpoint=entry["endpoint"],
             sport_cmd=entry["sport_cmd"],
             params=tuple(entry["params"]),
         )
-        for name, entry in data["commands"].items()
-    }
-
-
-def _resolve(
-    label: str, target: str | dict, commands: dict[str, Command], problems: list[str]
-) -> Command | None:
-    """Comando de um alvo: o nome dele, ou `{"command": nome, "args": {...}}`."""
-    name, args = (target["command"], target["args"]) if isinstance(target, dict) else (target, {})
-    if name not in commands:
-        problems.append(f"{label} aponta para comando inexistente {name!r}")
-        return None
-    command = commands[name]
-    if args:
-        numeric = all(type(value) in (int, float) for value in args.values())
-        if sorted(args) != sorted(command.params) or not numeric:
-            problems.append(f"{label}: args devem ser números para {list(command.params)}")
-            return None
-        return replace(command, args=tuple((p, float(args[p])) for p in command.params))
-    if list(command.params) not in PARAMS_WITHOUT_ARGS:
-        problems.append(f"{label}: comando {name!r} exige args para {list(command.params)}")
-        return None
-    return command
-
-
-def _fail_if(problems: list[str], path: Path) -> None:
-    if problems:
-        raise CommandsError(f"{path} inválido:\n" + "\n".join(f"  - {p}" for p in problems))
-
-
-def load_commands(path: Path = COMMANDS_FILE) -> CommandMap:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    problems: list[str] = []
-    commands = _api_commands(data)
 
     by_phrase: dict[str, Command] = {}
     for phrase, target in data["phrases"].items():
         key = normalize(phrase)
-        command = _resolve(f"frase {phrase!r}", target, commands, problems)
-        if command is None:
+        name, args = (target["command"], target["args"]) if isinstance(target, dict) else (target, {})
+        if name not in commands:
+            problems.append(f"frase {phrase!r} aponta para comando inexistente {name!r}")
+            continue
+        command = commands[name]
+        if args:
+            numeric = all(type(value) in (int, float) for value in args.values())
+            if sorted(args) != sorted(command.params) or not numeric:
+                problems.append(
+                    f"frase {phrase!r}: args devem ser números para {list(command.params)}"
+                )
+                continue
+            command = replace(command, args=tuple((p, float(args[p])) for p in command.params))
+        elif list(command.params) not in PARAMS_WITHOUT_ARGS:
+            problems.append(
+                f"frase {phrase!r}: comando {name!r} exige args para {list(command.params)}"
+            )
             continue
         if key in by_phrase:
             problems.append(f"frase {phrase!r} repetida (iguais depois de normalizar)")
         else:
             by_phrase[key] = command
 
-    _fail_if(problems, path)
+    if problems:
+        raise CommandsError(f"{path} inválido:\n" + "\n".join(f"  - {p}" for p in problems))
     return CommandMap(by_phrase=by_phrase, grammar=tuple(p.lower() for p in data["phrases"]))
-
-
-def load_intents(
-    path: Path = INTERPRETER_FILE, commands_path: Path = COMMANDS_FILE
-) -> dict[str, Command]:
-    """ID do interpretador → comando, da seção `comandos` de `interpreter.json`.
-
-    Toda ação e a parada precisam de um comando. Combinações de verbo e
-    direção podem ficar de fora (não existe "girar para frente").
-    """
-    data = json.loads(path.read_text(encoding="utf-8"))
-    commands = _api_commands(json.loads(commands_path.read_text(encoding="utf-8")))
-    problems: list[str] = []
-
-    required = {data["parada"]["id"], *data["acoes"]}
-    movements = {f"{verb}_{direction}" for verb in data["verbos"] for direction in data["direcoes"]}
-    by_intent: dict[str, Command] = {}
-    for intent, target in data["comandos"].items():
-        if intent not in required | movements:
-            problems.append(f"comando {intent!r} não é um ID que o interpretador produz")
-            continue
-        command = _resolve(f"comando {intent!r}", target, commands, problems)
-        if command is not None:
-            by_intent[intent] = command
-    for intent in sorted(required - set(data["comandos"])):
-        problems.append(f"{intent!r} não tem entrada em `comandos`")
-
-    _fail_if(problems, path)
-    return by_intent

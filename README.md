@@ -161,25 +161,6 @@ Configuração inválida (modo desconhecido, `GO2_API_URL` faltando em edge, `RE
 
 Diga "hey jarvis", espere o beep e diga a frase.
 
-Há dois modos de transformar a fala em comando, escolhidos por `STT_MODE` no `.env`:
-
-- **`livre`** (padrão): o Vosk transcreve sem gramática e o interpretador (`sense/interpreter.py`) aceita variações, como "por favor anda pra frente agora". Os vocabulários ficam em `config/interpreter.json`.
-- **`gramatica`**: só as frases exatas da tabela abaixo, de `config/commands.json`.
-
-### Modo livre
-
-| Tipo | Como é reconhecido | Exemplos |
-|---|---|---|
-| Movimento | um verbo (`andar`, `girar`) e uma direção (`frente`, `tras`, `direita`, `esquerda`) na frase | "anda para frente", "vira pra esquerda", "caminha pra trás" |
-| Parada | frase de até 2 palavras com "para", "pare", "parar" ou "stop" | "para", "pode parar" |
-| Ação | a frase contém uma das referências da ação | "robô senta aí", "pode levantar", "desligar os motores" |
-
-Não vira comando: frase com "não" ou "nunca" (menos a parada), direção sem verbo ("para frente"), e mais de um verbo, direção ou ação na mesma frase. Os valores de cada movimento são os mesmos da tabela abaixo, na seção `comandos` do `interpreter.json`; "andar" para direita ou esquerda é de lado, "girar" (ou "virar") é no lugar.
-
-Para acrescentar um sinônimo, uma direção ou uma ação, edite `config/interpreter.json`: uma linha no vocabulário e, se for um ID novo, uma em `comandos`. O arquivo é conferido na partida.
-
-### Modo gramática
-
 | Frase | Comando | O que faz |
 |---|---|---|
 | "levanta" | `stand_up` | levanta |
@@ -222,12 +203,9 @@ O script falha (código 1) se algum comando do arquivo não existir na API ou di
 | Confiança mínima do STT | `STT_MIN_CONFIDENCE` | 0.7 |
 | Tempo máximo de escuta após a wake word | `COMMAND_TIMEOUT_S` | 2.5 |
 | Cooldown de comando repetido | `COOLDOWN_S` | 2.0 |
-| Frase livre com interpretador, ou frases exatas | `STT_MODE` | `livre` |
 | Pasta do modelo Vosk | `VOSK_MODEL_PATH` | `models/vosk-model-small-pt-0.3` |
 
-**No `config/commands.json`:** as frases do modo gramática e os comandos.
-
-**No `config/interpreter.json`:** vocabulários, limiares e comandos do modo livre.
+**No `config/commands.json`:** as frases e os comandos.
 
 **Constantes no código** (edite o arquivo e reinicie):
 
@@ -283,8 +261,7 @@ Comando fora da gramática, confiança baixa, API fora do ar ou erro no POST: o 
 ```
 .
 ├── .env.example               # os dois modos documentados
-├── config/commands.json       # frase → comando (modo gramática) e comandos da API
-├── config/interpreter.json    # vocabulários e comandos do modo livre
+├── config/commands.json       # frase → comando
 ├── sense/
 │   ├── __main__.py            # entrada da TV Box: python -m sense
 │   ├── receiver.py            # entrada do PC (thin): python -m sense.receiver
@@ -293,14 +270,12 @@ Comando fora da gramática, confiança baixa, API fora do ar ou erro no POST: o 
 │   ├── edge.py / thin.py      # o laço de cada modo
 │   ├── audio.py               # microfone e beep
 │   ├── recognizer.py          # wake word + STT + lookup (único nos dois modos)
-│   ├── interpreter.py         # texto livre → ID de comando (modo livre)
 │   ├── commands.py            # carrega o mapa de comandos
 │   ├── dispatcher.py          # cooldown + POST na go2-api
 │   ├── stats.py               # contadores e log de diagnóstico
 │   └── transport/tcp.py       # transporte do thin (a única parte que sabe que é TCP)
 ├── scripts/
 │   ├── validate_commands.py   # confere commands.json contra GET /capabilities
-│   ├── bench_interpreter.py   # tempo de 1000 chamadas do interpretador
 │   └── download_models.py     # baixa hey_jarvis e o modelo Vosk
 ├── deploy/                    # serviço systemd e limites do journal
 ├── docs/checklist-laboratorio.md

@@ -16,9 +16,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Valores aceitos em SENSE_MODE (o que a TV Box faz).
 MODES = ("edge", "thin")
-# Valores aceitos em STT_MODE: transcrição livre + interpretador, ou a gramática
-# fechada de frases exatas do `commands.json`.
-STT_MODES = ("livre", "gramatica")
 # Papel do PC no modo thin. Não é um SENSE_MODE: quem o escolhe é o comando
 # `python -m sense.receiver`.
 RECEIVER = "receiver"
@@ -39,7 +36,6 @@ class Config:
     chunk_ms: int
     mic_name: str
     vosk_model_path: Path
-    stt_mode: str  # "livre" ou "gramatica"
     wake_threshold: float
     stt_min_confidence: float
     command_timeout_s: float
@@ -102,10 +98,6 @@ def load_config(role: str | None = None, env: Mapping[str, str] | None = None) -
     if not model_path.is_absolute():
         model_path = REPO_ROOT / model_path
 
-    stt_mode = get("STT_MODE") or "livre"
-    if stt_mode not in STT_MODES:
-        problems.append(f"STT_MODE={stt_mode!r} inválido (use um de: {', '.join(STT_MODES)})")
-
     config = Config(
         role=role,
         api_url=api_url,
@@ -114,7 +106,6 @@ def load_config(role: str | None = None, env: Mapping[str, str] | None = None) -
         chunk_ms=int(number("AUDIO_CHUNK_MS", 30, 20, 40)),
         mic_name=get("MIC_NAME") or "anker",
         vosk_model_path=model_path,
-        stt_mode=stt_mode,
         wake_threshold=number("WAKE_THRESHOLD", 0.85, 0, 1),
         stt_min_confidence=number("STT_MIN_CONFIDENCE", 0.7, 0, 1),
         command_timeout_s=number("COMMAND_TIMEOUT_S", 2.5, 1, 15),

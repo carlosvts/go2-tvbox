@@ -1,0 +1,37 @@
+# Serviço do Sense na TV Box. O mesmo arquivo serve aos dois modos: quem decide
+# é SENSE_MODE no .env do repo. Trocar de modo = editar o .env e
+# `sudo systemctl restart go2-sense`.
+#
+# Instalação (ajuste User e os dois caminhos se o repo não estiver em
+# /home/minipc/go2-tvbox):
+#   sudo cp deploy/go2-sense.service /etc/systemd/system/
+#   sudo cp deploy/journald@go2-sense.conf /etc/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now go2-sense
+#
+# Logs: journalctl --namespace=go2-sense -f
+
+[Unit]
+Description=Go2 Sense: voz para a go2-api (modo em SENSE_MODE no .env)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+User=minipc
+# Acesso direto ao microfone e ao alto-falante pelo ALSA.
+SupplementaryGroups=audio
+WorkingDirectory=/home/minipc/go2-tvbox
+ExecStart=/home/minipc/go2-tvbox/.venv/bin/python -m sense
+Environment=PYTHONUNBUFFERED=1
+
+# Reinicia se cair (microfone desconectado, erro inesperado), mas não quando a
+# configuração é inválida (código 2): reiniciar não conserta um .env errado.
+Restart=always
+RestartSec=5
+RestartPreventExitStatus=2
+
+# Journal separado, com teto de tamanho próprio (journald@go2-sense.conf).
+LogNamespace=go2-sense
+
+[Install]
+WantedBy=multi-user.target

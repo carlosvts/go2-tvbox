@@ -1,0 +1,42 @@
+[project]
+name = "go2-sense"
+version = "0.1.0"
+description = "Cliente de voz do Go2 (TV Box / PC): captura, reconhecimento e POST na go2-api."
+# 3.10 ou 3.11: é a faixa em que onnxruntime e tflite-runtime (dependências do
+# openwakeword) têm wheel para aarch64.
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "numpy>=1.24.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# Microfone. Só na TV Box; os testes rodam sem ele.
+capture = [
+    "pyaudio>=0.2.13",
+]
+# Wake word + STT. O modo thin só usa o openwakeword; o vosk fica instalado
+# mas não é carregado.
+recognition = [
+    "openwakeword==0.6.0",
+    "vosk>=0.3.45",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+# O tflite-runtime 2.14.0 só tem wheel aarch64 para glibc >= 2.34, e a TV Box
+# roda glibc 2.31. A 2.13.0 é manylinux2014 (glibc >= 2.17) e cobre 3.10/3.11.
+override-dependencies = [
+    "tflite-runtime==2.13.0 ; sys_platform == 'linux'",
+]
+# Faz o `uv lock` falhar já na hora de gerar o lock (mesmo num PC x86_64) se
+# alguma dependência não tiver wheel ou sdist para a TV Box.
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+

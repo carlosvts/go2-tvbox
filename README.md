@@ -262,7 +262,7 @@ Sem `SERVER_URL`, o que cairia no fallback é descartado com uma linha de log, e
 | Sensibilidade da wake word | `WAKE_THRESHOLD` | 0.85 |
 | VAD do Silero na wake word: nota mínima de voz (0 = desligado; 0.5 para ligar) | `WAKE_VAD_THRESHOLD` | 0 |
 | Thin: intervalo mínimo entre wake words | `WAKE_COOLDOWN_S` | 2.0 |
-| Thin: beep na wake word, e quanto do começo da escuta ele ocupa | `WAKE_SOUND`, `BEEP_IGNORE_S` | 1, 0.6 |
+| Thin: beep na wake word, e quanto do começo da escuta ele ocupa | `WAKE_SOUND`, `BEEP_IGNORE_S` | 1, 0.9 |
 | Thin: áudio de antes da detecção que entra no envio | `PRE_ROLL_S` | 0.3 |
 | Thin: silêncio de fim de fala, fala mínima e espera por fala | `VAD_END_SILENCE_S`, `VAD_MIN_SPEECH_S`, `VAD_SPEECH_TIMEOUT_S` | 0.7, 0.2, 5.0 |
 | Thin: limiar de voz (múltiplo do ruído de fundo e piso) | `VAD_SPEECH_RATIO`, `VAD_MIN_RMS` | 3.0, 150 |
@@ -328,7 +328,7 @@ API fora do ar ou erro no POST: o comando é descartado, com uma linha de log di
 ├── .env.example               # toda a configuração, comentada
 ├── config/phrases.json        # listas de onde as frases são geradas
 ├── config/commands.json       # frase → comando (gerado) e comandos da API
-├── media/                     # beep da wake word e sons de retorno do fallback
+├── media/                     # beeps da wake word (generate_beeps.py) e falas de retorno (generate_voice.py)
 ├── sense/
 │   ├── __main__.py            # entrada: python -m sense (escolhe o modo)
 │   ├── boot.py                # logging, validação e log de boot

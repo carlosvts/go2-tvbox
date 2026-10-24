@@ -23,7 +23,8 @@ O que cada som significa no código (para escolher frases que não mintam):
 
 O `beep` da wake word NÃO é gerado aqui, de propósito: ele toca durante a escuta
 e entra no áudio enviado ao servidor. Uma frase ali seria transcrita junto com o
-comando (um "não" viraria negação e rejeitaria a frase toda).
+comando (um "não" viraria negação e rejeitaria a frase toda). Ele é um sino curto,
+gerado por scripts/generate_beeps.py.
 """
 
 import argparse

@@ -10,7 +10,8 @@ da voz. Pode rodar mais de uma vez: só completa o que falta, não empilha.
     uv run python scripts/add_lead_silence.py --ms 400        # mais folga
     uv run python scripts/add_lead_silence.py --dry-run       # só mostra
 
-Pula o `beep.wav` (o beep da wake word não é fala). Guarde uma cópia antes se
+Pula o `beep*.wav` (o beep da wake word não é fala; scripts/generate_beeps.py já
+coloca o silêncio inicial nele). Guarde uma cópia antes se
 quiser poder voltar: `cp -r media media.bak`.
 """
 

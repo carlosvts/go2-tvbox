@@ -5,8 +5,12 @@ sem PyAudio instalado.
 """
 
 import logging
+import queue
+import random
 import re
 import subprocess
+import threading
+from pathlib import Path
 
 import numpy as np
 
@@ -99,15 +103,94 @@ class Microphone:
         self._pa.terminate()
 
 
+class SoundPlayer:
+    """Toca `media/<nome>.wav` pelo alto-falante do Anker, um som de cada vez.
+
+    Os sons vêm de threads diferentes (o laço do microfone e a thread do envio
+    ao servidor) e o `aplay` em `plughw:` abre o dispositivo sozinho: dois ao
+    mesmo tempo disputam o alto-falante e um deles falha em silêncio. Aqui eles
+    entram numa fila e tocam em sequência, numa thread à parte, então
+    `play()` nunca bloqueia o laço do microfone.
+
+    Um som pode ter variantes, `<nome>_2.wav`, `<nome>_3.wav`...: uma delas é
+    sorteada a cada vez, sem repetir a anterior, para a fala não soar robótica.
+    """
+
+    MAX_PENDING = 2  # se acumular mais que isto, o mais antigo é descartado
+    TIMEOUT_S = 15.0  # um `aplay` que passe disto é morto
+
+    def __init__(self, media_dir: Path = MEDIA_DIR, runner=subprocess.run, rng=None) -> None:
+        self._media_dir = media_dir
+        self._runner = runner
+        self._rng = rng or random.Random()
+        self._queue: queue.Queue[tuple[int, Path]] = queue.Queue(maxsize=self.MAX_PENDING)
+        self._variants: dict[str, list[Path]] = {}
+        self._last: dict[str, Path] = {}
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+
+    def variants(self, name: str) -> list[Path]:
+        """`<nome>.wav` e `<nome>_<número>.wav`, em ordem."""
+        if name not in self._variants:
+            pattern = re.compile(rf"^{re.escape(name)}(_\d+)?\.wav$")
+            self._variants[name] = sorted(
+                path for path in self._media_dir.glob(f"{name}*.wav") if pattern.match(path.name)
+            )
+            if not self._variants[name]:
+                log.warning("Som %r não encontrado em %s.", name, self._media_dir)
+        return self._variants[name]
+
+    def play(self, card: int | None, name: str) -> None:
+        if card is None:
+            return
+        options = self.variants(name)
+        if not options:
+            return
+        with self._lock:
+            if len(options) > 1:
+                options = [path for path in options if path != self._last.get(name)]
+            path = self._rng.choice(options)
+            self._last[name] = path
+            self._start()
+            try:
+                self._queue.put_nowait((card, path))
+            except queue.Full:
+                try:  # descarta o mais antigo que ainda não começou
+                    self._queue.get_nowait()
+                    self._queue.task_done()
+                except queue.Empty:
+                    pass
+                self._queue.put_nowait((card, path))
+
+    def wait_idle(self) -> None:
+        """Espera tudo o que está na fila terminar de tocar (para os testes)."""
+        self._queue.join()
+
+    def _start(self) -> None:
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._work, name="sound-player", daemon=True)
+            self._thread.start()
+
+    def _work(self) -> None:
+        while True:
+            card, path = self._queue.get()
+            try:
+                log.info("Tocando %s", path.name)
+                self._runner(
+                    ["aplay", "-D", f"plughw:{card},0", "--quiet", str(path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=self.TIMEOUT_S,
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                log.warning("Som %r não tocou: %s", path.name, error)
+            finally:
+                self._queue.task_done()
+
+
+_player = SoundPlayer()
+
+
 def play_sound(card: int | None, name: str) -> None:
-    """Toca `media/<name>.wav` pelo alto-falante do Anker, sem esperar terminar."""
-    if card is None:
-        return
-    try:
-        subprocess.Popen(
-            ["aplay", "-D", f"plughw:{card},0", "--quiet", str(MEDIA_DIR / f"{name}.wav")],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except OSError as error:
-        log.warning("Som %r não tocou: %s", name, error)
+    """Toca `media/<name>.wav` (ou uma variante) no Anker, sem esperar terminar."""
+    _player.play(card, name)

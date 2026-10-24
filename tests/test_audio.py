@@ -127,3 +127,24 @@ def test_erro_do_aplay_nao_derruba_o_player(tmp_path):
     player.play(1, "confirmed")
     player.wait_idle()
     assert len(calls) == 2
+
+
+def test_blocked_sem_wav_toca_rejected_no_lugar(tmp_path, caplog):
+    for name in ("rejected.wav", "rejected_2.wav"):
+        (tmp_path / name).write_bytes(b"RIFF")
+    calls = []
+    player = SoundPlayer(tmp_path, runner=lambda command, **kwargs: calls.append(command[-1]))
+    player.play(1, "blocked")
+    player.wait_idle()
+    assert calls and calls[0].rsplit("/", 1)[-1].startswith("rejected")
+    assert "tocando 'rejected' no lugar" in caplog.text
+
+
+def test_blocked_com_wav_toca_o_proprio(tmp_path):
+    for name in ("rejected.wav", "blocked.wav"):
+        (tmp_path / name).write_bytes(b"RIFF")
+    calls = []
+    player = SoundPlayer(tmp_path, runner=lambda command, **kwargs: calls.append(command[-1]))
+    player.play(1, "blocked")
+    player.wait_idle()
+    assert calls[0].endswith("blocked.wav")

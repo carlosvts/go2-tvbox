@@ -15,16 +15,12 @@ from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-SAMPLE_RATE = 16000  # exigido pelo openWakeWord e pelo Vosk
-
-# Valores aceitos em SENSE_MODE.
-#   edge: wake word + Vosk com gramática local, e fallback para o servidor.
-#   thin: só a wake word; o áudio do comando vai inteiro para o servidor.
-MODES = ("edge", "thin")
+SAMPLE_RATE = 16000  # exigido pelo openWakeWord e pelo servidor
 
 
-# Valores de `status` do servidor que contam como "confirmado".
-DEFAULT_OK_STATUSES = "ok,accepted,queued,executed,stopped"
+# Valores de `status` do servidor que contam como "confirmado": os do go2-server
+# (frase aceita na fila, ou parada executada).
+DEFAULT_OK_STATUSES = "enqueued,stopped"
 
 
 class ConfigError(Exception):
@@ -33,30 +29,21 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Config:
-    mode: str  # "edge" ou "thin"
-    api_url: str
+    # Servidor de inferência: recebe o áudio de cada comando.
+    server_url: str
+    # go2-api: só a parada manual (`python -m sense.stop`) fala com ela.
+    api_url: str | None
     chunk_ms: int
     mic_name: str
-    vosk_model_path: Path
     wake_word: str  # nome do modelo do openWakeWord
     wake_threshold: float
     wake_vad_threshold: float  # 0 = VAD do Silero desligado
-    stt_min_confidence: float
-    command_timeout_s: float
-    cooldown_s: float
-    # Movimento só sai com o desvio de obstáculo do robô confirmado como ligado.
-    require_obstacle_avoidance: bool
-    # Fallback para o servidor de inferência. Sem `server_url`, fica desligado.
-    server_url: str | None
     edge_id: str
     fallback_timeout_s: float
     cancel_timeout_s: float
     fallback_ok_statuses: frozenset[str]
-    max_local_utterance_s: float
     max_utterance_s: float
     audio_buffer_s: float
-    stop_failsafe: bool
-    # Só no modo thin.
     wake_cooldown_s: float
     wake_sound: bool
     beep_ignore_s: float
@@ -113,32 +100,26 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
             problems.append(f"{name}={value!r} inválido (esperado algo como {example})")
         return value
 
-    mode = get("SENSE_MODE") or "edge"
-    if mode not in MODES:
-        problems.append(f"SENSE_MODE={mode!r} inválido (use um de: {', '.join(MODES)})")
+    # O modo edge foi removido; só sobrou o thin. Um SENSE_MODE=thin antigo no
+    # .env não atrapalha, mas qualquer outro valor é um .env de outra época.
+    mode = get("SENSE_MODE")
+    if mode and mode != "thin":
+        problems.append(
+            f"SENSE_MODE={mode!r}: o Sense só tem o modo thin agora; apague a linha do .env"
+        )
 
     save_dir = Path(get("SAVE_UTTERANCES_DIR")) if get("SAVE_UTTERANCES_DIR") else None
     if save_dir is not None and not save_dir.is_absolute():
         save_dir = REPO_ROOT / save_dir
 
-    model_path = Path(get("VOSK_MODEL_PATH") or "models/vosk-model-small-pt-0.3")
-    if not model_path.is_absolute():
-        model_path = REPO_ROOT / model_path
-
     config = Config(
-        mode=mode,
-        api_url=url("GO2_API_URL", "http://192.168.0.10:8000", required=True) or "",
+        server_url=url("SERVER_URL", "http://192.168.0.10:9000", required=True) or "",
+        api_url=url("GO2_API_URL", "http://192.168.0.10:8000", required=False),
         chunk_ms=int(number("AUDIO_CHUNK_MS", 30, 20, 40)),
         mic_name=get("MIC_NAME") or "anker",
-        vosk_model_path=model_path,
         wake_word=get("WAKE_WORD") or "hey_jarvis",
         wake_threshold=number("WAKE_THRESHOLD", 0.85, 0, 1),
         wake_vad_threshold=number("WAKE_VAD_THRESHOLD", 0.0, 0, 1),
-        stt_min_confidence=number("STT_MIN_CONFIDENCE", 0.7, 0, 1),
-        command_timeout_s=number("COMMAND_TIMEOUT_S", 2.5, 1, 15),
-        cooldown_s=number("COOLDOWN_S", 2.0, 0, 60),
-        require_obstacle_avoidance=flag("REQUIRE_OBSTACLE_AVOIDANCE", True),
-        server_url=url("SERVER_URL", "http://192.168.0.10:9000", required=False),
         edge_id=get("EDGE_ID") or socket.gethostname(),
         fallback_timeout_s=number("FALLBACK_TIMEOUT_S", 5.0, 0.5, 60),
         cancel_timeout_s=number("CANCEL_TIMEOUT_S", 0.5, 0.1, 5),
@@ -147,10 +128,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
             for status in (get("FALLBACK_OK_STATUSES") or DEFAULT_OK_STATUSES).split(",")
             if status.strip()
         ),
-        max_local_utterance_s=number("MAX_LOCAL_UTTERANCE_S", 3.0, 0.5, 15),
         max_utterance_s=number("MAX_UTTERANCE_S", 8.0, 1, 30),
         audio_buffer_s=number("AUDIO_BUFFER_S", 10.0, 2, 60),
-        stop_failsafe=flag("STOP_FAILSAFE", True),
         wake_cooldown_s=number("WAKE_COOLDOWN_S", 2.0, 0, 30),
         wake_sound=flag("WAKE_SOUND", True),
         beep_ignore_s=number("BEEP_IGNORE_S", 0.9, 0, 3),
@@ -163,10 +142,6 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         utterance_reason=get("UTTERANCE_REASON") or "wake_word",
         save_utterances_dir=save_dir,
     )
-    if mode == "thin" and config.server_url is None:
-        problems.append("SERVER_URL não definido (obrigatório no modo thin)")
-    if config.max_utterance_s < config.command_timeout_s:
-        problems.append("MAX_UTTERANCE_S não pode ser menor que COMMAND_TIMEOUT_S")
     if config.audio_buffer_s < config.max_utterance_s + 1:
         problems.append("AUDIO_BUFFER_S tem de ser pelo menos MAX_UTTERANCE_S + 1")
     if problems:

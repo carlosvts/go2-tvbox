@@ -21,8 +21,13 @@ log = logging.getLogger(__name__)
 CAPTURE_RATE = 48000  # taxa nativa do Anker
 DOWNSAMPLE_RATIO = CAPTURE_RATE // SAMPLE_RATE  # 3
 MEDIA_DIR = REPO_ROOT / "media"
-# Sons de `media/`: `beep` (wake word) e o retorno do fallback (`processing`,
-# `confirmed`, `rejected`, `unconfirmed`, gerados por scripts/generate_sounds.py).
+# Sons de `media/`: `beep` (wake word, scripts/generate_beeps.py) e as falas de
+# retorno `processing`, `confirmed`, `rejected`, `blocked` e `unconfirmed`
+# (scripts/generate_voice.py).
+
+# Som que toca no lugar de outro enquanto este não tiver WAV em `media/`: as
+# falas de `blocked` são geradas no PC, e até lá "não entendi" é melhor que nada.
+SOUND_FALLBACKS = {"blocked": "rejected"}
 
 
 class MicrophoneError(Exception):
@@ -130,15 +135,28 @@ class SoundPlayer:
         self._lock = threading.Lock()
 
     def variants(self, name: str) -> list[Path]:
-        """`<nome>.wav` e `<nome>_<número>.wav`, em ordem."""
+        """`<nome>.wav` e `<nome>_<número>.wav`, em ordem.
+
+        Sem nenhum, as do som de `SOUND_FALLBACKS`, se houver.
+        """
         if name not in self._variants:
-            pattern = re.compile(rf"^{re.escape(name)}(_\d+)?\.wav$")
-            self._variants[name] = sorted(
-                path for path in self._media_dir.glob(f"{name}*.wav") if pattern.match(path.name)
-            )
-            if not self._variants[name]:
+            self._variants[name] = self._find(name)
+            fallback = SOUND_FALLBACKS.get(name)
+            if not self._variants[name] and fallback:
+                self._variants[name] = self._find(fallback)
+                log.warning(
+                    "Som %r não encontrado em %s; tocando %r no lugar.",
+                    name, self._media_dir, fallback,
+                )
+            elif not self._variants[name]:
                 log.warning("Som %r não encontrado em %s.", name, self._media_dir)
         return self._variants[name]
+
+    def _find(self, name: str) -> list[Path]:
+        pattern = re.compile(rf"^{re.escape(name)}(_\d+)?\.wav$")
+        return sorted(
+            path for path in self._media_dir.glob(f"{name}*.wav") if pattern.match(path.name)
+        )
 
     def play(self, card: int | None, name: str) -> None:
         if card is None:

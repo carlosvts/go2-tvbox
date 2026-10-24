@@ -1,7 +1,6 @@
 """Wake word com o openWakeWord.
 
-Fica separado do reconhecedor para o modo thin usá-lo sem carregar nada do
-Vosk. O openWakeWord é importado só ao criar o motor.
+O openWakeWord é importado só ao criar o motor, para os testes rodarem sem ele.
 """
 
 from collections import deque

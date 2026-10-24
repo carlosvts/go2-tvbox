@@ -1,9 +1,9 @@
 """Partida: logging, validação da config e log de boot."""
 
 import logging
-from dataclasses import fields
 import subprocess
 import sys
+from dataclasses import fields
 
 from sense.config import REPO_ROOT, Config, ConfigError, load_config
 
@@ -13,8 +13,9 @@ log = logging.getLogger(__name__)
 # nesse caso (RestartPreventExitStatus=2): reiniciar não conserta um .env errado.
 EXIT_BAD_CONFIG = 2
 
+
 def git_revision() -> str:
-    """Branch e commit do código em execução, ex.: "sense-mode-config@1a2b3c4"."""
+    """Branch e commit do código em execução, ex.: "main@1a2b3c4"."""
 
     def git(*args: str) -> str:
         return subprocess.run(
@@ -42,6 +43,6 @@ def start() -> Config:
         sys.exit(EXIT_BAD_CONFIG)
 
     settings = " ".join(f"{field.name}={getattr(config, field.name)}" for field in fields(config))
-    log.info("Sense iniciando | modo=%s | código=%s", config.mode, git_revision())
+    log.info("Sense iniciando | código=%s", git_revision())
     log.info("Configuração: %s", settings)
     return config

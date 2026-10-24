@@ -19,6 +19,9 @@ O que cada som significa no código (para escolher frases que não mintam):
                ainda não o executou, então nada de "pronto" ou "feito".
   rejected     o servidor recusou, ou a wake word veio sem fala depois. A TV Box
                volta a esperar a wake word, então a frase manda chamar de novo.
+  blocked      o servidor ENTENDEU, mas o comando está desligado no catálogo dele
+               (`reject_reason: command_disabled`, ex.: "dançar"). Nada de "não
+               entendi". Sem estes WAVs, a TV Box toca `rejected` no lugar.
   unconfirmed  nenhuma resposta do servidor (timeout ou erro de rede).
 
 O `beep` da wake word NÃO é gerado aqui, de propósito: ele toca durante a escuta
@@ -47,6 +50,11 @@ PHRASES: dict[str, list[str]] = {
         "Hum, não entendi. Me chama de novo.",
         "Desculpa, não peguei essa. Me chama de novo.",
     ],
+    "blocked": [
+        "Esse eu ainda não posso fazer.",
+        "Entendi, mas esse ainda não está liberado.",
+        "Esse comando ainda está desligado.",
+    ],
     "unconfirmed": [
         "Não tive resposta do servidor.",
         "Hum, não consegui confirmar. Tenta de novo.",
@@ -55,7 +63,9 @@ PHRASES: dict[str, list[str]] = {
 
 # Acima disto a frase passa a atrapalhar: `processing` não pode ficar mais
 # longa que a espera típica pela resposta, senão `confirmed` entra atrasado.
-MAX_DURATION_S = {"processing": 1.3, "confirmed": 1.0, "rejected": 2.8, "unconfirmed": 2.8}
+MAX_DURATION_S = {
+    "processing": 1.3, "confirmed": 1.0, "rejected": 2.8, "blocked": 2.8, "unconfirmed": 2.8,
+}
 
 TRIM_DB = -40.0  # silêncio = abaixo disto em relação ao pico
 LEAD_PAD_S, TAIL_PAD_S = 0.04, 0.08

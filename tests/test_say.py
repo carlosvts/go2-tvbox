@@ -29,7 +29,7 @@ def test_repeat_toca_todas_as_vezes_sem_a_fila_descartar(tmp_path):
     assert len(fake.played) == 6
 
 
-def test_all_toca_beep_e_as_quatro_falas(tmp_path):
+def test_all_toca_beep_e_todas_as_falas(tmp_path):
     player, fake = _player(tmp_path, *(f"{n}.wav" for n in ("beep", *say.SPOKEN)))
     say.main(["--all", "--card", "1", "--gap-s", "0"], player=player)
     assert [name for _, name in fake.played] == ["beep.wav", *(f"{n}.wav" for n in say.SPOKEN)]

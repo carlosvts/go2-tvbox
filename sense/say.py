@@ -1,7 +1,7 @@
 """Toca os sons de retorno no Anker sem ligar o pipeline, para testar as falas.
 
     uv run python -m sense.say processing confirmed
-    uv run python -m sense.say --all                  # beep e as quatro falas, uma de cada vez
+    uv run python -m sense.say --all                  # beep e as cinco falas, uma de cada vez
     uv run python -m sense.say confirmed --repeat 6   # confere o sorteio de variantes
     uv run python -m sense.say rejected --card 1      # sem detectar o card pelo nome
 
@@ -16,7 +16,7 @@ import time
 
 from sense.audio import SoundPlayer, alsa_card
 
-SPOKEN = ("processing", "confirmed", "rejected", "unconfirmed")
+SPOKEN = ("processing", "confirmed", "rejected", "blocked", "unconfirmed")
 
 
 def find_card(mic_name: str) -> int | None:
@@ -38,7 +38,7 @@ def find_card(mic_name: str) -> int | None:
 def main(argv: list[str] | None = None, player: SoundPlayer | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="sons a tocar, ex.: processing confirmed")
-    parser.add_argument("--all", action="store_true", help="toca beep e as quatro falas")
+    parser.add_argument("--all", action="store_true", help="toca beep e as cinco falas")
     parser.add_argument("--repeat", type=int, default=1, help="quantas vezes tocar cada som")
     parser.add_argument("--card", type=int, help="número do card ALSA (padrão: detecta pelo nome do mic)")
     parser.add_argument("--mic", default="anker", help="parte do nome do dispositivo, para achar o card")

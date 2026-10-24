@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 MEDIA_DIR = Path(__file__).resolve().parent.parent / "media"
-SPOKEN = ("processing", "confirmed", "rejected", "unconfirmed")
+SPOKEN = ("processing", "confirmed", "rejected", "blocked", "unconfirmed")
 SILENCE_LEVEL = 0.01  # abaixo disto (cerca de -40 dBFS) conta como silêncio
 
 

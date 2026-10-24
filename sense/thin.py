@@ -1,6 +1,7 @@
-"""Modo thin: a TV Box só detecta a wake word e manda o áudio do comando.
+"""O laço da TV Box: só detecta a wake word e manda o áudio do comando.
 
-Nenhuma inferência de comando roda aqui (nada de Vosk). Quem transcreve,
+É o único modo do Sense (o nome "thin" ficou de quando havia também o modo edge,
+com reconhecimento local). Nenhuma inferência de comando roda aqui. Quem transcreve,
 interpreta, enfileira e chama a go2-api é o servidor de inferência; a resposta
 dele só vira som de retorno e log.
 
@@ -205,9 +206,7 @@ class ThinMachine:
             interaction["audio_s"], cut,
         )
         self._save(audio, interaction["utterance_id"])
-        utterance = Utterance(
-            audio, self._config.utterance_reason, None, None, interaction["utterance_id"]
-        )
+        utterance = Utterance(audio, self._config.utterance_reason, interaction["utterance_id"])
         if self._sender.submit(utterance, self._replies.put):
             interaction["sent_at"] = round(self._clock(), 3)
             self._sending_s = 0.0
@@ -233,6 +232,7 @@ class ThinMachine:
                     "outcome": reply.outcome.name.lower(),
                     "transcript": reply.transcript,
                     "error": reply.error,
+                    "reject_reason": reply.reject_reason,
                 }
             )
             self._feedback(OUTCOME_SOUNDS[reply.outcome])

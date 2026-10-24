@@ -1,9 +1,7 @@
-"""Modo thin: máquina de estados, envio ao servidor falso e parada manual."""
+"""O laço da TV Box: máquina de estados, envio ao servidor falso e parada manual."""
 
 import io
 import json
-import subprocess
-import sys
 import threading
 import time
 import wave
@@ -16,10 +14,9 @@ from sense import stop as stop_module
 from sense.config import ConfigError, load_config
 from sense.fallback_client import FallbackClient, Outcome, Reply
 from sense.thin import ThinMachine
-from tests.test_dispatcher import api  # noqa: F401  (fixture: a go2-api falsa)
-from tests.test_fallback_client import OK, server, wait_for  # noqa: F401  (fixtures)
+from tests.conftest import OK, wait_for
 
-ENV = {"GO2_API_URL": "http://api:8000", "SERVER_URL": "http://server:9000", "SENSE_MODE": "thin"}
+ENV = {"GO2_API_URL": "http://api:8000", "SERVER_URL": "http://server:9000"}
 CONFIG = load_config(env=ENV)
 CHUNK_S = 0.03
 
@@ -54,9 +51,14 @@ class FakeSender:
         self.callbacks.append(on_reply)
         return True
 
-    def reply(self, outcome=Outcome.CONFIRMED, status="ok", transcript="senta", error=None):
+    def reply(
+        self, outcome=Outcome.CONFIRMED, status="ok", transcript="senta", error=None,
+        reject_reason=None,
+    ):
         utterance = self.utterances[-1]
-        self.callbacks[-1](Reply(outcome, utterance.utterance_id, status, transcript, error))
+        self.callbacks[-1](
+            Reply(outcome, utterance.utterance_id, status, transcript, error, reject_reason)
+        )
 
 
 class Clock:
@@ -108,8 +110,7 @@ def test_wake_word_fala_envio_e_resposta_voltam_ao_ocioso(caplog):
 
     assert sounds == ["beep", "processing"]  # retorno na wake word e ao enviar
     (utterance,) = sender.utterances
-    reason = (utterance.reason, utterance.hypothesis, utterance.confidence)
-    assert reason == ("wake_word", None, None)
+    assert utterance.reason == "wake_word"
     assert len(utterance.utterance_id) == 36
 
     clock.now += 0.8  # o servidor leva 0,8 s
@@ -221,6 +222,7 @@ def test_limiar_da_wake_word_e_som_sao_configuraveis():
     [
         (Outcome.CONFIRMED, "stopped", "confirmed", "stopped"),
         (Outcome.REJECTED, "rejected", "rejected", "rejected"),
+        (Outcome.BLOCKED, "rejected", "blocked", "rejected"),
         (Outcome.UNCONFIRMED, None, "unconfirmed", "unconfirmed"),
     ],
 )
@@ -282,7 +284,7 @@ def test_flag_salva_os_wavs_enviados(tmp_path):
 # ─── Envio ao servidor (cliente de verdade, servidor falso) ──────────────────
 
 
-def thin_with_server(server, timeout_s=2.0, port=None):  # noqa: F811
+def thin_with_server(server, timeout_s=2.0, port=None):
     counters, sounds, clock = Counter(), [], Clock()
     url = f"http://127.0.0.1:{port or server.server_port}"
     client = FallbackClient(url, "tvbox-teste", timeout_s, 0.3, OK | {"stopped"}, counters)
@@ -299,7 +301,7 @@ def wait_reply(machine, clock, sounds):
     wait_for(replied)
 
 
-def test_servidor_recebe_wav_e_meta_do_thin(server):  # noqa: F811
+def test_servidor_recebe_wav_e_meta_do_thin(server):
     machine, wake, sounds, clock = thin_with_server(server)
     speak(machine, wake, clock)
     wait_reply(machine, clock, sounds)
@@ -319,7 +321,7 @@ def test_servidor_recebe_wav_e_meta_do_thin(server):  # noqa: F811
     assert server.others == []  # o thin não manda cancel nem executa nada
 
 
-def test_status_rejected_do_servidor_e_nao_entendi(server):  # noqa: F811
+def test_status_rejected_do_servidor_e_nao_entendi(server):
     server.answer = (200, {"status": "rejected", "transcript": "blá"})
     machine, wake, sounds, clock = thin_with_server(server)
     speak(machine, wake, clock)
@@ -328,7 +330,7 @@ def test_status_rejected_do_servidor_e_nao_entendi(server):  # noqa: F811
     assert machine.metrics.results == {"rejected": 1}
 
 
-def test_timeout_do_servidor_e_nao_confirmado(server):  # noqa: F811
+def test_timeout_do_servidor_e_nao_confirmado(server):
     server.release.clear()  # recebe e não responde
     machine, wake, sounds, clock = thin_with_server(server, timeout_s=0.3)
     speak(machine, wake, clock)
@@ -337,7 +339,7 @@ def test_timeout_do_servidor_e_nao_confirmado(server):  # noqa: F811
     assert len(server.utterances) == 1  # chegou lá: pode ter sido executado
 
 
-def test_erro_de_rede_e_nao_confirmado(server):  # noqa: F811
+def test_erro_de_rede_e_nao_confirmado(server):
     machine, wake, sounds, clock = thin_with_server(server, port=1)
     speak(machine, wake, clock)
     wait_reply(machine, clock, sounds)
@@ -345,37 +347,50 @@ def test_erro_de_rede_e_nao_confirmado(server):  # noqa: F811
     assert machine.metrics.results == {"unconfirmed": 1}
 
 
-def test_health_do_servidor(server):  # noqa: F811
+def test_health_do_servidor(server):
     client = FallbackClient(f"http://127.0.0.1:{server.server_port}", "x", 1.0, 0.3, OK, Counter())
     assert client.healthy() is True
     assert FallbackClient("http://127.0.0.1:1", "x", 1.0, 0.3, OK, Counter()).healthy() is False
 
 
-# ─── Seleção de modo ─────────────────────────────────────────────────────────
+# ─── Comando desligado no servidor ───────────────────────────────────────────
 
 
-def test_modo_padrao_e_edge_e_thin_exige_servidor():
-    assert load_config(env={"GO2_API_URL": "http://api:8000"}).mode == "edge"
-    assert CONFIG.mode == "thin"
-    with pytest.raises(ConfigError, match="SERVER_URL não definido .obrigatório no modo thin"):
-        load_config(env={"GO2_API_URL": "http://api:8000", "SENSE_MODE": "thin"})
-    with pytest.raises(ConfigError, match="SENSE_MODE='cloud' inválido"):
-        load_config(env={"GO2_API_URL": "http://api:8000", "SENSE_MODE": "cloud"})
-
-
-def test_thin_nao_importa_o_vosk_nem_o_reconhecedor():
-    code = (
-        "import sys, sense.thin, sense.wake, sense.stop\n"
-        "loaded = [m for m in ('vosk', 'sense.recognizer', 'sense.edge') if m in sys.modules]\n"
-        "assert not loaded, loaded\n"
+def test_comando_desligado_toca_blocked_e_loga_o_motivo(server, caplog):
+    caplog.set_level("INFO")
+    server.answer = (
+        200,
+        {"status": "rejected", "transcript": "Dançar!", "reject_reason": "command_disabled"},
     )
-    subprocess.run([sys.executable, "-c", code], check=True)
+    machine, wake, sounds, clock = thin_with_server(server)
+    speak(machine, wake, clock)
+    wait_reply(machine, clock, sounds)
+    assert sounds == ["beep", "processing", "blocked"]
+    assert machine.metrics.results == {"rejected": 1}
+    (line,) = [r.getMessage() for r in caplog.records if r.getMessage().startswith("Interação: ")]
+    interaction = json.loads(line.removeprefix("Interação: "))
+    assert (interaction["outcome"], interaction["reject_reason"]) == ("blocked", "command_disabled")
+
+
+# ─── Configuração ────────────────────────────────────────────────────────────
+
+
+def test_servidor_e_obrigatorio_e_a_api_nao():
+    with pytest.raises(ConfigError, match="SERVER_URL não definido"):
+        load_config(env={"GO2_API_URL": "http://api:8000"})
+    assert load_config(env={"SERVER_URL": "http://server:9000"}).api_url is None
+
+
+def test_sense_mode_antigo_thin_passa_e_edge_da_erro_claro():
+    assert load_config(env={**ENV, "SENSE_MODE": "thin"}).server_url == "http://server:9000"
+    with pytest.raises(ConfigError, match="SENSE_MODE='edge': o Sense só tem o modo thin"):
+        load_config(env={**ENV, "SENSE_MODE": "edge"})
 
 
 # ─── Parada manual ───────────────────────────────────────────────────────────
 
 
-def stop_config(api, server_port):  # noqa: F811
+def stop_config(api, server_port):
     return load_config(
         env={
             "GO2_API_URL": f"http://127.0.0.1:{api.server_port}",
@@ -385,13 +400,13 @@ def stop_config(api, server_port):  # noqa: F811
     )
 
 
-def test_parada_manual_chama_a_go2_api_e_avisa_o_servidor(api, server):  # noqa: F811
+def test_parada_manual_chama_a_go2_api_e_avisa_o_servidor(api, server):
     assert stop_module.stop(stop_config(api, server.server_port)) is True
     assert api.requests == [("/commands/stop", None)]
     wait_for(lambda: server.others == [("/v1/cancel", {"reason": "stop"})])
 
 
-def test_parada_manual_nao_e_segurada_pelo_cancel(api, server):  # noqa: F811
+def test_parada_manual_nao_e_segurada_pelo_cancel(api, server):
     server.cancel_delay_s = 2.0  # o servidor demora mais que o timeout do cancel
     done = threading.Event()
     api_answered_at = []
@@ -411,12 +426,25 @@ def test_parada_manual_nao_e_segurada_pelo_cancel(api, server):  # noqa: F811
     finally:
         api.RequestHandlerClass.do_POST = original
 
-    # Servidor fora do ar, ou sem servidor configurado: a parada sai igual.
+    # Servidor fora do ar: a parada sai igual.
     assert stop_module.stop(stop_config(api, 1)) is True
-    assert stop_module.stop(load_config(env={"GO2_API_URL": f"http://127.0.0.1:{api.server_port}"}))
-    assert len(api.requests) == 3
+    assert len(api.requests) == 2
 
 
-def test_parada_manual_devolve_falso_se_a_api_recusar(api, server):  # noqa: F811
+def test_parada_manual_devolve_falso_se_a_api_recusar(api, server):
     api.status = 503
     assert stop_module.stop(stop_config(api, server.server_port)) is False
+
+
+def test_parada_manual_devolve_falso_se_a_api_estiver_fora(server):
+    config = load_config(
+        env={"GO2_API_URL": "http://127.0.0.1:1", "SERVER_URL": f"http://127.0.0.1:{server.server_port}"}
+    )
+    assert stop_module.stop(config) is False
+
+
+def test_parada_manual_sem_go2_api_url_sai_com_2(monkeypatch, server):
+    config = load_config(env={"SERVER_URL": f"http://127.0.0.1:{server.server_port}"})
+    assert stop_module.stop(config) is False
+    monkeypatch.setattr(stop_module, "load_config", lambda: config)
+    assert stop_module.main() == 2

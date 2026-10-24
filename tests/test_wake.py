@@ -1,13 +1,39 @@
 """O motor de wake word de verdade, com fala sintética e ruído.
 
-Pulado nas mesmas condições de test_recognizer_real.py.
+Pulado se faltar o extra `recognition`, o modelo (scripts/download_models.py), o
+espeak-ng ou o sox. Voz sintética não diz nada sobre a acurácia com gente de
+verdade: o teste só prova que o motor está ligado e que o VAD dele filtra ruído.
 """
+
+import shutil
+import subprocess
+import wave
 
 import numpy as np
 import pytest
 
 from sense.wake import OpenWakeWordEngine
-from tests.test_recognizer_real import speech
+
+pytest.importorskip("openwakeword")
+if not (shutil.which("espeak-ng") and shutil.which("sox")):
+    pytest.skip("sem espeak-ng ou sox", allow_module_level=True)
+try:
+    OpenWakeWordEngine("hey_jarvis")
+except Exception as error:  # modelo não baixado
+    pytest.skip(f"wake word não carregou: {error}", allow_module_level=True)
+
+
+def speech(tmp_path, voice, text, silence_after_s):
+    """Fala sintética do espeak-ng em 16 kHz mono PCM16, com silêncio depois."""
+    raw, out = tmp_path / "raw.wav", tmp_path / "out.wav"
+    subprocess.run(["espeak-ng", "-v", voice, "-s", "140", "-w", raw, text], check=True)
+    subprocess.run(
+        ["sox", raw, "-r", "16000", "-c", "1", "-b", "16", out, "pad", "0.5", str(silence_after_s)],
+        check=True,
+    )
+    with wave.open(str(out)) as wav:
+        return wav.readframes(wav.getnframes())
+
 
 NOISE = np.random.default_rng(0).normal(0, 4000, 16000 * 5).astype(np.int16).tobytes()
 
